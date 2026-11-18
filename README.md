@@ -34,8 +34,20 @@ JSON directly, so print time, filament, nozzle and size can come from the sliced
   point at a JSON analysis and override any field.
 - **Compatibility checks** with reasons: material, filament count against AMS slots, nozzle,
   bed fit (including a 90 degree rotation), and which printer models the file was sliced for.
-- **Two strategies**: `fill` minimises the time finished plates wait for an operator, and `edd`
-  runs earliest due date first. Both honour job priority and avoid unnecessary material changes.
+- **Two greedy strategies**: `fill` minimises the time finished plates wait for an operator, and
+  `edd` runs earliest due date first. Both honour job priority and avoid unnecessary material
+  changes.
+- **Explicit objective**: a weighted sum of priority-weighted tardiness, makespan, waiting outside
+  and inside labour hours, and material changes. Every term is reported separately, and the
+  weights are set with `--weight`. The formula is in [docs/algorithm.md](docs/algorithm.md).
+- **Local search** (`plan --improve hill|anneal`): move, swap and reassign-printer moves on top
+  of the greedy schedule, with hill climbing or simulated annealing. Seeded and deterministic for
+  an iteration budget, with an optional time limit. It never returns a plan worse than its start.
+- **Exact solver for small instances**: branch-and-bound over plate-to-printer assignment and
+  order, up to 8 plates by default. The tests use it to measure how far the heuristics are from
+  the optimum.
+- **`compare` command**: runs `fill`, `edd`, hill climbing, annealing and the exact solver on the
+  same input, with a table of objective terms and run times (text, JSON or HTML).
 - **Metrics**: makespan, utilisation per printer and for the fleet, operator time, material
   changes, waiting time split into outside and inside labour hours, and lateness per job.
 - **Outputs**: terminal text, CSV, JSON, and a self-contained HTML Gantt report with no scripts
@@ -73,6 +85,15 @@ Production plan (strategy: fill)
   Finished plates waiting: 51h 05m outside labour windows, 1h 29m inside
   Filament: 1822.2 g
 
+Objective (lower is better; minutes, weighted)
+  term                          value  weight  contribution
+  weighted tardiness            0 min       1           0.0
+  makespan                   1710 min       1        1710.0
+  wait outside labour hours  3065 min     0.2         613.0
+  wait inside labour hours     89 min     0.5          44.5
+  material changes                  4      10          40.0
+  total                                              2407.5
+
 Printers
   printer  model    plates  printing  setup  wait off  wait in   util
   P1S-1    P1S           5   27h 00m    25m    1h 05m       0m  94.7%
@@ -85,6 +106,70 @@ Printers
 The same input with `--strategy edd` gave a 29h 10m makespan, 5 material changes and 39h 40m of
 off-hours waiting. On this example, `edd` left less overnight waiting than `fill`. Neither
 strategy is better in general: both are greedy heuristics, so try both on your own order.
+
+### Improving a plan and comparing planners
+
+`compare` runs every planner on the same input. On the same invented example:
+
+```console
+$ printfarm-planner compare --fleet examples/fleet.json examples/jobs.csv --start 2026-11-23T08:00
+Planner comparison (26 plates)
+
+  objective = 1 x tardiness + 1 x makespan + 0.2 x wait off + 0.5 x wait in + 10 x changes
+  times in minutes; gap is relative to the lowest objective in this table
+
+  method  objective    gap  tardiness  makespan  wait off  wait in  changes    time  note
+  fill       2407.5  80.7%          0   28h 30m   51h 05m   1h 29m        4    2 ms
+  edd        2313.5  73.6%          0   29h 10m   39h 40m   1h 15m        5    1 ms
+  hill       1332.5   0.0%          0   21h 50m        0m       5m        2  1.12 s  from edd, 2000 iterations
+  anneal     1342.5   0.8%          0   21h 50m        0m       5m        3  1.11 s  from edd, 2000 iterations
+  exact           -      -          -         -         -        -        -    0 ms  skipped: 26 plates is above the exact-solver limit of 8
+```
+
+What this shows, and what it does not:
+
+- On this example the local search found plans that start every plate on Monday and let the
+  last long PETG plates print overnight. The makespan fell from 29h 10m to 21h 50m and no
+  printer waits overnight *between* plates. The final plates still sit on the bed until Tuesday
+  08:00, and that wait is not part of the objective (see Known limitations).
+- The result depends on the seed. With seeds 1 to 4, hill climbing ended between 1342.5 and
+  1357.5, and annealing between 1332.5 and 1357.5. Annealing was not consistently better.
+- With 26 plates the exact solver is skipped, so there is no proof of how far these plans are
+  from the optimum. Run times are from the development machine.
+
+For an instance small enough for the exact solver, `examples/small-jobs.csv` has 8 plates (also
+invented):
+
+```console
+$ printfarm-planner compare --fleet examples/fleet.json examples/small-jobs.csv --start 2026-11-23T08:00
+Planner comparison (8 plates)
+
+  objective = 1 x tardiness + 1 x makespan + 0.2 x wait off + 0.5 x wait in + 10 x changes
+  times in minutes; gap is relative to the lowest objective in this table
+
+  method  objective    gap  tardiness  makespan  wait off  wait in  changes    time  note
+  fill        940.0  16.0%        125   13h 35m        0m       0m        0    1 ms
+  edd         955.0  17.9%        145   13h 20m        0m       0m        1    0 ms
+  hill        810.0   0.0%          0   13h 30m        0m       0m        0  348 ms  from fill, 2000 iterations
+  anneal      810.0   0.0%          0   13h 20m        0m       0m        1  342 ms  from fill, 2000 iterations
+  exact       810.0   0.0%          0   13h 30m        0m       0m        0   10 ms  optimal in the sequence model, 92 nodes
+```
+
+Both greedy strategies finish `logo-badge` after its 10-hour due time. The local search and the
+exact solver find a plan where nothing is late. "Optimal in the sequence model" means optimal
+over plate orders per printer timed by the planner's dispatch rule, not over every conceivable
+timetable ([docs/algorithm.md](docs/algorithm.md#5-exact-solver-for-small-instances-exactpy)).
+
+On generated instances the local search is not always optimal. Over 40 instances of 7 plates,
+hill climbing reached the exact optimum on 30, with a mean gap of 4.8%, and stayed 147% above it
+on one. On 16 of 40 instances of 5 plates it did not improve on the greedy start at all, in many
+of them because the greedy plan was already optimal. The full table is in
+[docs/algorithm.md](docs/algorithm.md#6-measured-gaps).
+
+![Comparison report for the example plan](docs/compare.png)
+
+To use the improved plan, add `--improve hill` (or `anneal`) to `plan`. Weights are changed per
+term, for example `--weight makespan=0.5 --weight material_changes=30`.
 
 Check which printers can run which jobs, without scheduling:
 
@@ -200,6 +285,11 @@ Times are minutes from `--start`, in naive local time.
 
 This is a fast, explainable greedy heuristic. It does not search for an optimal schedule.
 
+4. Optionally, `--improve hill|anneal` runs a local search over the plate order of each
+   printer. Every candidate is re-timed with the same rules, and the best plan by the objective
+   is kept. `compare` also runs a branch-and-bound exact solver when there are at most 8 plates.
+   Both are described, with formulas, in [docs/algorithm.md](docs/algorithm.md).
+
 ## Architecture
 
 ```text
@@ -209,27 +299,37 @@ src/printfarm_planner/
   labour.py     Weekly windows, lazily generated calendar, operator booking
   jobs.py       Jobs CSV and gcode-insight JSON loaders
   compat.py     Printer/job compatibility with reasons
-  scheduler.py  Greedy list scheduler (fill / edd)
+  scheduler.py  Dispatcher shared by all planners, greedy list scheduler (fill / edd),
+                sequence decoder (simulate)
   metrics.py    Utilisation, waiting split, lateness
+  objective.py  Weighted objective and its terms
+  search.py     Local search: move / swap / reassign, hill climbing or annealing
+  exact.py      Branch-and-bound for small instances
+  compare.py    Runs every planner on one input; text, JSON and HTML comparison
   report.py     Text, CSV and JSON output
   gantt.py      Self-contained HTML + SVG Gantt report
-  cli.py        plan / check / models
+  cli.py        plan / compare / check / models
 ```
 
 ## Command reference
 
 ```text
-usage: printfarm-planner [-h] [--version] {plan,check,models} ...
+usage: printfarm-planner [-h] [--version] {plan,compare,check,models} ...
 
-    plan               build a schedule
-    check              show which printers can run which jobs
-    models             list built-in printer models
+    plan                build a schedule
+    compare             run fill, edd, local search and the exact solver on
+                        the same input
+    check               show which printers can run which jobs
+    models              list built-in printer models
 ```
 
 ```text
 usage: printfarm-planner plan [-h] --fleet FLEET [--start START]
                               [--copies COPIES] [--material MATERIAL]
                               [--prep-min PREP_MIN] [--strategy {fill,edd}]
+                              [--improve {hill,anneal}]
+                              [--iterations ITERATIONS] [--time-limit SECONDS]
+                              [--seed SEED] [--weight NAME=VALUE]
                               [--html HTML] [--csv CSV] [--json]
                               [--title TITLE]
                               inputs [inputs ...]
@@ -249,14 +349,45 @@ usage: printfarm-planner plan [-h] --fleet FLEET [--start START]
   --strategy {fill,edd}
                         fill: minimise finished plates waiting for an
                         operator; edd: earliest due date first (default fill)
+  --improve {hill,anneal}
+                        run a local-search improvement phase on the greedy
+                        schedule: hill climbing or simulated annealing
+  --iterations ITERATIONS
+                        local-search iteration budget (default 2000)
+  --time-limit SECONDS  local-search wall-clock limit; results then depend on
+                        machine speed
+  --seed SEED           local-search random seed (default 0)
+  --weight NAME=VALUE   objective weight, repeatable; NAME is one of
+                        tardiness, makespan, wait_off, wait_in,
+                        material_changes (defaults: tardiness=1, makespan=1,
+                        wait_off=0.2, wait_in=0.5, material_changes=10)
   --html HTML           write a Gantt HTML report here
   --csv CSV             write the schedule as CSV here
   --json                print JSON instead of text
   --title TITLE         HTML report title
 ```
 
-`check` takes the same input options as `plan`. Exit status: 0 for success, 1 when some job
-cannot run on any printer, and 2 for invalid input.
+```text
+usage: printfarm-planner compare [-h] --fleet FLEET [--start START]
+                                 [--copies COPIES] [--material MATERIAL]
+                                 [--prep-min PREP_MIN]
+                                 [--iterations ITERATIONS]
+                                 [--time-limit SECONDS] [--seed SEED]
+                                 [--weight NAME=VALUE] [--exact-limit PLATES]
+                                 [--html HTML] [--json] [--title TITLE]
+                                 inputs [inputs ...]
+
+  (input, --iterations, --time-limit, --seed and --weight options as for plan)
+  --exact-limit PLATES  run the exact solver only up to this many plates
+                        (default 8; run time grows steeply)
+  --html HTML           write an HTML comparison report here
+  --json                print JSON instead of text
+  --title TITLE         HTML report title
+```
+
+`compare` starts both local searches from whichever greedy plan has the lower objective. `check`
+takes the same input options as `plan`. Exit status: 0 for success, 1 when some job cannot run
+on any printer, and 2 for invalid input.
 
 ## Testing
 
@@ -265,11 +396,18 @@ pip install -e ".[dev]"
 ruff check . && ruff format --check . && mypy && pytest --cov
 ```
 
-The 160 tests include scheduler scenarios with timelines worked out by hand (for example, a
+The 250 tests include scheduler scenarios with timelines worked out by hand (for example, a
 12-hour plate started Monday 08:05 ends at 20:05, and its successor is set up at Tuesday 08:00).
 They also cover calendar edge cases (weekends, shifts past midnight, windows too short for a
 task), operator contention, and loading the real JSON output of gcode-insight. CI runs on Ubuntu
 and Windows with Python 3.10 and 3.13.
+
+For the v0.2.0 planners, the tests check objective terms against hand-derived values, check
+that the local search never returns a worse plan than its start and that every plan it returns
+still respects labour windows, operator capacity and compatibility, and check that runs are
+repeatable for a seed. They also compare the exact solver against brute-force enumeration on 16
+generated instances, and pin the optimality gaps measured by `tests/gap_study.py`
+(`python tests/gap_study.py` prints them).
 
 ## Known limitations
 
@@ -277,10 +415,18 @@ and Windows with Python 3.10 and 3.13.
   been compared against what happened on real printers.
 - Print times are slicer or model estimates. Failures, reprints, first-layer checks and
   maintenance are not modelled.
-- Greedy heuristic: plans are reasonable but not optimal. The two strategies can rank
-  differently on different orders.
+- `fill` and `edd` are greedy heuristics, and the local search can stop in a local optimum
+  (measured gaps are in [docs/algorithm.md](docs/algorithm.md#6-measured-gaps)). Only instances
+  of up to about 8 plates can be solved exactly, and "exact" means optimal over plate orders
+  timed by the planner's dispatch rule, not over every possible timetable.
+- The default objective weights are a judgement call, not calibrated on a real farm. Different
+  weights give different "best" plans.
 - One operator task per plate start. The final plate on each printer is not cleared in the
-  plan, and loading AMS spools is assumed to happen within `material_change_min`.
+  plan, and the time it waits on the bed is not counted in the objective, so a plan that ends
+  every printer overnight looks better than it would to the person clearing the plates.
+  Loading AMS spools is assumed to happen within `material_change_min`.
+- The local search with a `--time-limit` is not repeatable across machines. The default
+  2000-iteration budget took about 1.1 s for the 26-plate example on the development machine.
 - Material compatibility is by type only. TPU in an AMS, hardened nozzles for CF filaments and
   similar rules are left to your own `materials` lists.
 - Wall-clock times are naive local time, so daylight-saving changes are not modelled.
@@ -289,7 +435,8 @@ and Windows with Python 3.10 and 3.13.
 ## Roadmap
 
 - Plate-batching: put several small jobs on one plate when they share material.
-- Improvement pass (local search) on top of the greedy schedule.
+- Count the wait after each printer's final plate, or schedule clearing it.
+- Faster incremental re-timing in the local search, for larger orders.
 - Downtime and maintenance windows per printer.
 - Read `.gcode.3mf` plate lists through gcode-insight.
 
