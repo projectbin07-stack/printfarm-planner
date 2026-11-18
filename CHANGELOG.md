@@ -4,6 +4,60 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-19
+
+This release changes planning results. **The wait figures of v0.2.0 understated the wait of
+improved plans:** v0.2.0 neither cleared each printer's final plate in the plan nor counted the
+time that plate sat on the bed. The local search exploited this by ending every printer
+overnight, which showed as 0 minutes of waiting although the last plates waited until the next
+staffed window.
+
+### Changed
+
+- Every printer that ran a plate now gets a clearing task for its final plate
+  (`plate_change_min`), booked by the same dispatch rule as plate starts: inside a labour window,
+  with a free operator. The makespan ends when the last clearing ends.
+- The final plate's wait until it is cleared now counts in `wait_off` / `wait_in`, and so in the
+  objective. The formula in `docs/algorithm.md` writes the sums out. Tardiness still uses the
+  print finish.
+- Exact solver: closing a used printer books its clearing, and the lower bound includes the
+  unavoidable final wait and clearing. It still matches brute-force enumeration on all 16 test
+  instances.
+- Greedy plate choice is unchanged, but clearings now take operator time. On the example order
+  the `fill` plan's plate times are identical; in the `edd` plan one clearing delays seven plate
+  starts by 5 minutes.
+
+### Added
+
+- Text and HTML reports show each printer's final-plate wait and when it is cleared; the Gantt
+  chart draws the final wait and the clearing task. JSON output has a `"clearings"` list and
+  `metrics.final_wait_min`.
+
+### Results before and after (example data, default weights, seed 0, 2000 iterations)
+
+26-plate `examples/jobs.csv`:
+
+| method | v0.2.0 objective | v0.2.0 wait off | v0.3.0 objective | v0.3.0 wait off |
+|---|---:|---:|---:|---:|
+| fill | 2407.5 | 51h 05m | 2419.2 | 51h 05m |
+| edd | 2313.5 | 39h 40m | 2464.5 | 50h 35m |
+| hill | 1332.5 | 0m | 1867.5 | 17h 45m |
+| anneal | 1342.5 | 0m | 1745.2 | 17h 50m |
+
+v0.2.0 showed hill climbing 42.4% below the better greedy plan (`edd`); v0.3.0 shows 22.8%
+(hill climbing) and 27.9% (annealing) below the better greedy plan (now `fill`). The
+improvement is still there, but smaller than v0.2.0 reported. Re-timed with clearing, the v0.2.0
+hill-climbing plan scores 1907.0 with 32h 52m of off-hours waiting.
+
+8-plate `examples/small-jobs.csv`: `fill` 940.0 to 1845.5, `edd` 955.0 to 2057.5, exact optimum
+810.0 to 1455.0 (hill climbing and annealing reach it in both versions). All plans now end on
+Tuesday morning, when the plates that printed overnight are cleared.
+
+Measured gaps on generated instances (`tests/gap_study.py`) changed too; for example hill
+climbing's worst 7-plate gap went from 147% to 78% (same instance). The new table is in
+`docs/algorithm.md`. Exact-solver run times measured for this release: up to 0.25 s for 8
+plates and 7.0 s for 10 plates on generated instances.
+
 ## [0.2.0] - 2026-11-19
 
 ### Added
@@ -68,5 +122,6 @@ First release.
 - Not yet used on a real print farm. Example jobs are invented, and print times come from slicer
   or model estimates. See the README section "Known limitations".
 
+[0.3.0]: https://github.com/projectbin07-stack/printfarm-planner/releases/tag/v0.3.0
 [0.2.0]: https://github.com/projectbin07-stack/printfarm-planner/releases/tag/v0.2.0
 [0.1.0]: https://github.com/projectbin07-stack/printfarm-planner/releases/tag/v0.1.0

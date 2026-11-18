@@ -28,8 +28,9 @@ JSON directly, so print time, filament, nozzle and size can come from the sliced
   materials, the spools loaded at the start, an optional speed `time_factor`, and a `count` for
   identical machines.
 - **Labour windows**: weekday ranges (`mon-fri`), split shifts, shifts that run past midnight,
-  or `24/7`. Plate changes and material changes are operator tasks that must fit inside a window,
-  and each operator does one task at a time.
+  or `24/7`. Plate changes, material changes and clearing each printer's final plate are operator
+  tasks that must fit inside a window, and each operator does one task at a time. The plan ends
+  when the last final plate is cleared.
 - **Jobs** from a CSV plan, from `gcode-insight analyze --json` files, or both. A CSV row can
   point at a JSON analysis and override any field.
 - **Compatibility checks** with reasons: material, filament count against AMS slots, nozzle,
@@ -38,7 +39,7 @@ JSON directly, so print time, filament, nozzle and size can come from the sliced
   `edd` runs earliest due date first. Both honour job priority and avoid unnecessary material
   changes.
 - **Explicit objective**: a weighted sum of priority-weighted tardiness, makespan, waiting outside
-  and inside labour hours, and material changes. Every term is reported separately, and the
+  and inside labour hours (including final plates waiting to be cleared), and material changes. Every term is reported separately, and the
   weights are set with `--weight`. The formula is in [docs/algorithm.md](docs/algorithm.md).
 - **Local search** (`plan --improve hill|anneal`): move, swap and reassign-printer moves on top
   of the greedy schedule, with hill climbing or simulated annealing. Seeded and deterministic for
@@ -79,33 +80,36 @@ Output (first part; the full text also lists every plate and job):
 ```text
 Production plan (strategy: fill)
 
-  Start Mon 23 Nov 08:00   Finish Tue 24 Nov 12:30   Makespan 28h 30m
-  26 plates, 83h 53m printing, fleet utilisation 58.9%
-  Operator: 26 tasks, 2h 50m, 4 material changes
-  Finished plates waiting: 51h 05m outside labour windows, 1h 29m inside
+  Start Mon 23 Nov 08:00   Finish Tue 24 Nov 12:35   Makespan 28h 35m
+  26 plates, 83h 53m printing, fleet utilisation 58.7%
+  Operator: 31 tasks, 3h 15m, 4 material changes
+  Finished plates waiting: 51h 05m outside labour windows, 1h 42m inside
+  Of that, final plates waiting to be cleared: 13m
   Filament: 1822.2 g
 
 Objective (lower is better; minutes, weighted)
   term                          value  weight  contribution
   weighted tardiness            0 min       1           0.0
-  makespan                   1710 min       1        1710.0
+  makespan                   1715 min       1        1715.0
   wait outside labour hours  3065 min     0.2         613.0
-  wait inside labour hours     89 min     0.5          44.5
+  wait inside labour hours    102 min     0.5          51.2
   material changes                  4      10          40.0
-  total                                              2407.5
+  total                                              2419.2
 
-Printers
-  printer  model    plates  printing  setup  wait off  wait in   util
-  P1S-1    P1S           5   27h 00m    25m    1h 05m       0m  94.7%
-  P1S-2    P1S           4   12h 40m    20m   14h 00m      15m  44.4%
-  A1-1     A1            5   15h 16m    55m   11h 35m      10m  53.6%
-  A1-2     A1            4   16h 45m    30m   10h 25m      15m  58.8%
-  A1-Mini  A1 Mini       8   12h 12m    40m   14h 00m      49m  42.8%
+Printers (wait off / wait in include the final plate's wait)
+  printer  model    plates  printing  setup  wait off  wait in  final wait  cleared            util
+  P1S-1    P1S           5   27h 00m    25m    1h 05m       0m          0m  Tue 24 Nov 12:35  94.5%
+  P1S-2    P1S           4   12h 40m    20m   14h 00m      15m          0m  Tue 24 Nov 11:25  44.3%
+  A1-1     A1            5   15h 16m    55m   11h 35m      14m          4m  Tue 24 Nov 12:15  53.4%
+  A1-2     A1            4   16h 45m    30m   10h 25m      20m          5m  Tue 24 Nov 12:20  58.6%
+  A1-Mini  A1 Mini       8   12h 12m    40m   14h 00m      54m          4m  Tue 24 Nov 12:10  42.7%
 ```
 
-The same input with `--strategy edd` gave a 29h 10m makespan, 5 material changes and 39h 40m of
-off-hours waiting. On this example, `edd` left less overnight waiting than `fill`. Neither
-strategy is better in general: both are greedy heuristics, so try both on your own order.
+The 31 operator tasks are 26 plate starts and 5 clearings of final plates. The same input with
+`--strategy edd` gave a 29h 20m makespan, 5 material changes and 50h 35m of off-hours waiting,
+11h 05m of it final plates left overnight, for an objective of 2464.5 against 2419.2 for `fill`.
+Neither strategy is better in general: both are greedy heuristics, so try both on your own
+order.
 
 ### Improving a plan and comparing planners
 
@@ -119,21 +123,28 @@ Planner comparison (26 plates)
   times in minutes; gap is relative to the lowest objective in this table
 
   method  objective    gap  tardiness  makespan  wait off  wait in  changes    time  note
-  fill       2407.5  80.7%          0   28h 30m   51h 05m   1h 29m        4    2 ms
-  edd        2313.5  73.6%          0   29h 10m   39h 40m   1h 15m        5    1 ms
-  hill       1332.5   0.0%          0   21h 50m        0m       5m        2  1.12 s  from edd, 2000 iterations
-  anneal     1342.5   0.8%          0   21h 50m        0m       5m        3  1.11 s  from edd, 2000 iterations
+  fill       2419.2  38.6%          0   28h 35m   51h 05m   1h 42m        4    2 ms
+  edd        2464.5  41.2%          0   29h 20m   50h 35m   1h 35m        5    2 ms
+  hill       1867.5   7.0%          0   26h 35m   17h 45m      39m        4  1.39 s  from fill, 2000 iterations
+  anneal     1745.2   0.0%          0   24h 20m   17h 50m      42m        5  1.43 s  from fill, 2000 iterations
   exact           -      -          -         -         -        -        -    0 ms  skipped: 26 plates is above the exact-solver limit of 8
 ```
 
 What this shows, and what it does not:
 
-- On this example the local search found plans that start every plate on Monday and let the
-  last long PETG plates print overnight. The makespan fell from 29h 10m to 21h 50m and no
-  printer waits overnight *between* plates. The final plates still sit on the bed until Tuesday
-  08:00, and that wait is not part of the objective (see Known limitations).
-- The result depends on the seed. With seeds 1 to 4, hill climbing ended between 1342.5 and
-  1357.5, and annealing between 1332.5 and 1357.5. Annealing was not consistently better.
+- The local search lowers the objective by 23% (hill climbing) and 28% (annealing) against the
+  better greedy plan, mostly by cutting overnight waiting from about 51 hours to about 18 hours.
+  The improved plans still let long plates print overnight, but time them to finish closer to
+  Tuesday 08:00, when they are cleared. Most of their remaining wait is final plates: 13h 25m
+  for hill climbing and 18h 24m for annealing, 10h 55m of it on P1S-2, the only printer that
+  can run the ASA job.
+- **v0.2.0 overstated this improvement.** Its objective did not count the final plate's wait
+  and did not schedule clearing it, so it showed hill climbing at 1332.5 with 0m of off-hours
+  waiting, 42.4% below the better greedy plan (then `edd`). Re-timed and scored with clearing,
+  that same v0.2.0 plan has 32h 52m of off-hours waiting and an objective of 1907.0. The
+  improvement is still there, but at 23-28% it is smaller than v0.2.0 reported.
+- The result depends on the seed. With seeds 0 to 4, hill climbing ended between 1749.2 and
+  1871.4, and annealing between 1745.2 and 1956.2. Annealing was not consistently better.
 - With 26 plates the exact solver is skipped, so there is no proof of how far these plans are
   from the optimum. Run times are from the development machine.
 
@@ -148,23 +159,30 @@ Planner comparison (8 plates)
   times in minutes; gap is relative to the lowest objective in this table
 
   method  objective    gap  tardiness  makespan  wait off  wait in  changes    time  note
-  fill        940.0  16.0%        125   13h 35m        0m       0m        0    1 ms
-  edd         955.0  17.9%        145   13h 20m        0m       0m        1    0 ms
-  hill        810.0   0.0%          0   13h 30m        0m       0m        0  348 ms  from fill, 2000 iterations
-  anneal      810.0   0.0%          0   13h 20m        0m       0m        1  342 ms  from fill, 2000 iterations
-  exact       810.0   0.0%          0   13h 30m        0m       0m        0   10 ms  optimal in the sequence model, 92 nodes
+  fill       1845.5  26.8%        125   24h 10m   22h 20m       5m        0    1 ms
+  edd        2057.5  41.4%        145   24h 15m   36h 15m      25m        1    1 ms
+  hill       1455.0   0.0%          0   24h 05m       50m       0m        0  468 ms  from fill, 2000 iterations
+  anneal     1455.0   0.0%          0   24h 05m       50m       0m        0  449 ms  from fill, 2000 iterations
+  exact      1455.0   0.0%          0   24h 05m       50m       0m        0   58 ms  optimal in the sequence model, 534 nodes
 ```
 
-Both greedy strategies finish `logo-badge` after its 10-hour due time. The local search and the
-exact solver find a plan where nothing is late. "Optimal in the sequence model" means optimal
-over plate orders per printer timed by the planner's dispatch rule, not over every conceivable
-timetable ([docs/algorithm.md](docs/algorithm.md#5-exact-solver-for-small-instances-exactpy)).
+Both greedy strategies finish `logo-badge` after its 10-hour due time, and both leave two
+printers holding a finished plate from Monday evening until Tuesday 08:00. The local search and
+the exact solver find a plan where nothing is late and the 13h 15m `enclosure-base` plate starts
+at 17:55 after an `enclosure-lid` plate, so it finishes at 07:10, just before it is cleared. Every
+plan ends on Tuesday morning, because some plate always prints past 18:00 and has to be cleared
+the next day. "Optimal in the sequence model" means optimal over plate orders per printer timed
+by the planner's dispatch rule, not over every conceivable timetable
+([docs/algorithm.md](docs/algorithm.md#5-exact-solver-for-small-instances-exactpy)).
+
+v0.2.0 reported 940.0 for `fill` and 810.0 for the optimum on this input, with makespans around
+13.5 hours and no waiting, because the final plates were never cleared in its plans.
 
 On generated instances the local search is not always optimal. Over 40 instances of 7 plates,
-hill climbing reached the exact optimum on 30, with a mean gap of 4.8%, and stayed 147% above it
-on one. On 16 of 40 instances of 5 plates it did not improve on the greedy start at all, in many
-of them because the greedy plan was already optimal. The full table is in
-[docs/algorithm.md](docs/algorithm.md#6-measured-gaps).
+hill climbing reached the exact optimum on 28, with a mean gap of 3.3%, and stayed 78% above it
+on one; annealing reached it on 34. On 10 of 40 instances of 5 plates hill climbing did not
+improve on the greedy start at all, in many of them because the greedy plan was already optimal.
+The full table is in [docs/algorithm.md](docs/algorithm.md#6-measured-gaps).
 
 ![Comparison report for the example plan](docs/compare.png)
 
@@ -280,6 +298,11 @@ Times are minutes from `--start`, in naive local time.
      that fewer printers can run.
    - `edd`: priority, then earliest due date, then no material change, then longest print, then
      the same flexibility tie-break.
+
+   When the printer that comes first has nothing left that it can run, its final plate is
+   cleared instead: an operator task of `plate_change_min` with the same window and operator
+   rules. The plan ends when the last final plate is cleared, and a final plate that finishes
+   at night waits, and counts as waiting, until then.
 3. Loaded spools are tracked per printer. With an AMS, the most recently used spools stay
    loaded, up to the slot count.
 
@@ -396,18 +419,19 @@ pip install -e ".[dev]"
 ruff check . && ruff format --check . && mypy && pytest --cov
 ```
 
-The 250 tests include scheduler scenarios with timelines worked out by hand (for example, a
-12-hour plate started Monday 08:05 ends at 20:05, and its successor is set up at Tuesday 08:00).
-They also cover calendar edge cases (weekends, shifts past midnight, windows too short for a
-task), operator contention, and loading the real JSON output of gcode-insight. CI runs on Ubuntu
-and Windows with Python 3.10 and 3.13.
+The 284 tests include scheduler scenarios with timelines worked out by hand (for example, a
+12-hour plate started Monday 08:05 ends at 20:05, its successor is set up at Tuesday 08:00, and
+the final plate is cleared Wednesday 08:00). They also cover calendar edge cases (weekends,
+shifts past midnight, windows too short for a task), operator contention, including two final
+plates competing for one operator, and loading the real JSON output of gcode-insight. CI runs
+on Ubuntu and Windows with Python 3.10 and 3.13.
 
-For the v0.2.0 planners, the tests check objective terms against hand-derived values, check
-that the local search never returns a worse plan than its start and that every plan it returns
-still respects labour windows, operator capacity and compatibility, and check that runs are
-repeatable for a seed. They also compare the exact solver against brute-force enumeration on 16
-generated instances, and pin the optimality gaps measured by `tests/gap_study.py`
-(`python tests/gap_study.py` prints them).
+For the planners added in v0.2.0, the tests check objective terms against hand-derived values,
+check that the local search never returns a worse plan than its start and that every plan it
+returns still respects labour windows, operator capacity and compatibility and clears every
+final plate, and check that runs are repeatable for a seed. They also compare the exact solver
+against brute-force enumeration on 16 generated instances, and pin the optimality gaps measured
+by `tests/gap_study.py` (`python tests/gap_study.py` prints them).
 
 ## Known limitations
 
@@ -421,12 +445,15 @@ generated instances, and pin the optimality gaps measured by `tests/gap_study.py
   timed by the planner's dispatch rule, not over every possible timetable.
 - The default objective weights are a judgement call, not calibrated on a real farm. Different
   weights give different "best" plans.
-- One operator task per plate start. The final plate on each printer is not cleared in the
-  plan, and the time it waits on the bed is not counted in the objective, so a plan that ends
-  every printer overnight looks better than it would to the person clearing the plates.
-  Loading AMS spools is assumed to happen within `material_change_min`.
+- Final plates: since v0.3.0 each printer's final plate is cleared in the plan and its wait
+  counts in the objective (v0.2.0 did neither, and so understated the wait of improved plans;
+  see [CHANGELOG.md](CHANGELOG.md)). Clearing is assumed to take `plate_change_min`, the same as
+  a plate change. Tardiness still uses the time a plate finishes printing, not when it is taken
+  off the bed, so a job that finishes at 02:00 before a 06:00 due time counts as on time. The
+  CSV export lists plates only; the clearing tasks are in the text, JSON and HTML output.
+- Loading AMS spools is assumed to happen within `material_change_min`.
 - The local search with a `--time-limit` is not repeatable across machines. The default
-  2000-iteration budget took about 1.1 s for the 26-plate example on the development machine.
+  2000-iteration budget took about 1.4 s for the 26-plate example on the development machine.
 - Material compatibility is by type only. TPU in an AMS, hardened nozzles for CF filaments and
   similar rules are left to your own `materials` lists.
 - Wall-clock times are naive local time, so daylight-saving changes are not modelled.
@@ -435,7 +462,7 @@ generated instances, and pin the optimality gaps measured by `tests/gap_study.py
 ## Roadmap
 
 - Plate-batching: put several small jobs on one plate when they share material.
-- Count the wait after each printer's final plate, or schedule clearing it.
+- Optionally measure tardiness at plate removal instead of print end.
 - Faster incremental re-timing in the local search, for larger orders.
 - Downtime and maintenance windows per printer.
 - Read `.gcode.3mf` plate lists through gcode-insight.
