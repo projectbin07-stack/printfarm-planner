@@ -9,9 +9,27 @@ from typing import Any
 
 from . import __version__
 from .metrics import Metrics
+from .objective import TERMS, Objective
 from .scheduler import Schedule
 
-__all__ = ["format_duration", "format_text", "to_csv", "to_json_dict"]
+__all__ = [
+    "TERM_LABELS",
+    "format_duration",
+    "format_objective",
+    "format_text",
+    "objective_rows",
+    "text_table",
+    "to_csv",
+    "to_json_dict",
+]
+
+TERM_LABELS = {
+    "tardiness": "weighted tardiness",
+    "makespan": "makespan",
+    "wait_off": "wait outside labour hours",
+    "wait_in": "wait inside labour hours",
+    "material_changes": "material changes",
+}
 
 
 def format_duration(minutes: float) -> str:
@@ -19,6 +37,38 @@ def format_duration(minutes: float) -> str:
     total = round(minutes)
     hours, mins = divmod(total, 60)
     return f"{hours}h {mins:02d}m" if hours else f"{mins}m"
+
+
+def _number(value: float) -> str:
+    return f"{value:.10g}" if abs(value) < 1e6 else f"{value:.6g}"
+
+
+def objective_rows(objective: Objective) -> list[list[str]]:
+    """``[label, value, weight, contribution]`` per term, then the total."""
+    contributions = objective.contributions()
+    rows = []
+    for name in TERMS:
+        raw = float(getattr(objective, name))
+        value = f"{raw:g}" if name == "material_changes" else f"{raw:.0f} min"
+        rows.append(
+            [
+                TERM_LABELS[name],
+                value,
+                _number(getattr(objective.weights, name)),
+                f"{contributions[name]:.1f}",
+            ]
+        )
+    rows.append(["total", "", "", f"{objective.total:.1f}"])
+    return rows
+
+
+def format_objective(objective: Objective) -> list[str]:
+    """Text lines for the objective block (see docs/algorithm.md for the formula)."""
+    lines = ["Objective (lower is better; minutes, weighted)"]
+    lines += text_table(
+        ["term", "value", "weight", "contribution"], objective_rows(objective), {1, 2, 3}
+    )
+    return lines
 
 
 def _when(schedule: Schedule, minutes: float) -> str:
@@ -30,7 +80,7 @@ def _iso(schedule: Schedule, minutes: float) -> str:
     return moment.replace(microsecond=0).isoformat(timespec="minutes")
 
 
-def _table(header: list[str], rows: list[list[str]], right: set[int]) -> list[str]:
+def text_table(header: list[str], rows: list[list[str]], right: set[int]) -> list[str]:
     widths = [max(len(r[i]) for r in [header, *rows]) for i in range(len(header))]
 
     def line(cells: list[str]) -> str:
@@ -42,7 +92,7 @@ def _table(header: list[str], rows: list[list[str]], right: set[int]) -> list[st
     return [line(header), *(line(r) for r in rows)]
 
 
-def format_text(schedule: Schedule, metrics: Metrics) -> str:
+def format_text(schedule: Schedule, metrics: Metrics, objective: Objective | None = None) -> str:
     out = [f"Production plan (strategy: {schedule.strategy})", ""]
     if schedule.assignments:
         out.append(
@@ -65,6 +115,9 @@ def format_text(schedule: Schedule, metrics: Metrics) -> str:
         if metrics.mass_g is not None:
             out.append(f"  Filament: {metrics.mass_g:.1f} g")
         out.append("")
+        if objective is not None:
+            out += format_objective(objective)
+            out.append("")
 
         rows = [
             [
@@ -80,7 +133,7 @@ def format_text(schedule: Schedule, metrics: Metrics) -> str:
             for s in metrics.printers
         ]
         out.append("Printers")
-        out += _table(
+        out += text_table(
             ["printer", "model", "plates", "printing", "setup", "wait off", "wait in", "util"],
             rows,
             {2, 3, 4, 5, 6, 7},
@@ -101,7 +154,7 @@ def format_text(schedule: Schedule, metrics: Metrics) -> str:
                     ]
                 )
         out.append("Schedule")
-        out += _table(["printer", "plate", "start", "end", "print", "material"], rows, {4})
+        out += text_table(["printer", "plate", "start", "end", "print", "material"], rows, {4})
         out.append("")
 
         rows = []
@@ -115,7 +168,7 @@ def format_text(schedule: Schedule, metrics: Metrics) -> str:
             due = _when(schedule, j.due_min) if j.due_min is not None else "-"
             rows.append([j.name, str(j.copies), _when(schedule, j.finish_min), due, status])
         out.append("Jobs")
-        out += _table(["job", "copies", "finished", "due", "status"], rows, {1})
+        out += text_table(["job", "copies", "finished", "due", "status"], rows, {1})
         out.append("")
     else:
         out += ["  Nothing could be scheduled.", ""]
@@ -169,8 +222,10 @@ def to_csv(schedule: Schedule) -> str:
     return buffer.getvalue()
 
 
-def to_json_dict(schedule: Schedule, metrics: Metrics) -> dict[str, Any]:
-    return {
+def to_json_dict(
+    schedule: Schedule, metrics: Metrics, objective: Objective | None = None
+) -> dict[str, Any]:
+    data: dict[str, Any] = {
         "generator": f"printfarm-planner {__version__}",
         "start": _iso(schedule, 0),
         "strategy": schedule.strategy,
@@ -194,3 +249,6 @@ def to_json_dict(schedule: Schedule, metrics: Metrics) -> dict[str, Any]:
         "unscheduled": [{"job": u.job.name, "reasons": u.reasons} for u in schedule.unscheduled],
         "metrics": metrics.to_dict(),
     }
+    if objective is not None:
+        data["objective"] = objective.to_dict()
+    return data

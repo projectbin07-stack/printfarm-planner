@@ -9,10 +9,11 @@ from itertools import pairwise
 from . import __version__
 from .metrics import Metrics
 from .model import material_type
-from .report import format_duration
+from .objective import Objective
+from .report import format_duration, objective_rows
 from .scheduler import Schedule
 
-__all__ = ["render_html"]
+__all__ = ["CSS", "chart", "legend", "objective_table", "render_html"]
 
 _MATERIAL_COLOURS = {
     "PLA": "#3b6fd4",
@@ -31,7 +32,7 @@ _ROW_H = 36
 _BAR_H = 22
 _AXIS_H = 42
 
-_CSS = """
+CSS = """
 :root { --bg:#ffffff; --fg:#1d1f23; --muted:#5d636d; --line:#d9dce1; --panel:#f5f6f8;
         --window:#e3f1e5; --late:#b3261e; --ok:#1e7a3c; }
 @media (prefers-color-scheme: dark) {
@@ -77,7 +78,7 @@ def _colour(spools: tuple[str, ...]) -> str:
     return _MATERIAL_COLOURS.get(material_type(spools[0]), _OTHER) if spools else _OTHER
 
 
-def _chart(schedule: Schedule, metrics: Metrics) -> str:
+def chart(schedule: Schedule, metrics: Metrics) -> str:
     cal = schedule.calendar
     end = max(metrics.makespan_min, 60.0)
     hours = end / 60.0
@@ -184,7 +185,7 @@ def _chart(schedule: Schedule, metrics: Metrics) -> str:
     return "".join(parts)
 
 
-def _legend(schedule: Schedule) -> str:
+def legend(schedule: Schedule) -> str:
     used = sorted({material_type(a.plate.job.spools[0]) for a in schedule.assignments})
     items = [
         f'<span><i style="background:{_MATERIAL_COLOURS.get(m, _OTHER)}"></i>{escape(m)}</span>'
@@ -199,7 +200,31 @@ def _legend(schedule: Schedule) -> str:
     return '<div class="legend">' + "".join(items) + "</div>"
 
 
-def render_html(schedule: Schedule, metrics: Metrics, title: str = "Print farm plan") -> str:
+def objective_table(objective: Objective) -> str:
+    """HTML table of the objective terms, weights and contributions."""
+    parts = [
+        '<div class="table"><table><tr><th>Term</th><th class="num">Value</th>'
+        '<th class="num">Weight</th><th class="num">Contribution</th></tr>'
+    ]
+    for label, value, weight, contribution in objective_rows(objective):
+        cells = f"<td class=num>{escape(value)}</td><td class=num>{escape(weight)}</td>"
+        if label == "total":
+            total = f"<th class=num>{escape(contribution)}</th>"
+            parts.append(f"<tr><th>total</th><td></td><td></td>{total}</tr>")
+        else:
+            parts.append(
+                f"<tr><td>{escape(label)}</td>{cells}<td class=num>{escape(contribution)}</td></tr>"
+            )
+    parts.append("</table></div>")
+    return "".join(parts)
+
+
+def render_html(
+    schedule: Schedule,
+    metrics: Metrics,
+    title: str = "Print farm plan",
+    objective: Objective | None = None,
+) -> str:
     cal = schedule.calendar
 
     def when(minutes: float) -> str:
@@ -228,8 +253,17 @@ def render_html(schedule: Schedule, metrics: Metrics, title: str = "Print farm p
         )
         + "</div>",
         "<h2>Timeline</h2>",
-        f'<div class="chart">{_chart(schedule, metrics)}</div>',
-        _legend(schedule),
+        f'<div class="chart">{chart(schedule, metrics)}</div>',
+        legend(schedule),
+    ]
+    if objective is not None:
+        body += [
+            "<h2>Objective</h2>",
+            '<p class="sub">Weighted sum, lower is better. Times in minutes; the formula is in '
+            "docs/algorithm.md.</p>",
+            objective_table(objective),
+        ]
+    body += [
         "<h2>Printers</h2>",
         '<div class="table"><table><tr><th>Printer</th><th>Model</th><th class="num">Plates</th>'
         '<th class="num">Printing</th><th class="num">Setup</th>'
@@ -284,6 +318,6 @@ def render_html(schedule: Schedule, metrics: Metrics, title: str = "Print farm p
     return (
         '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        f"<title>{escape(title)}</title><style>{_CSS}</style></head>"
+        f"<title>{escape(title)}</title><style>{CSS}</style></head>"
         f"<body><main>{''.join(body)}</main></body></html>\n"
     )
