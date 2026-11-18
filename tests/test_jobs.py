@@ -170,7 +170,7 @@ def test_csv_errors(tmp_path: Path, text: str, message: str) -> None:
 
 def test_csv_error_names_the_row(tmp_path: Path) -> None:
     path = write(tmp_path, "name,print_time,material\nok,60,PLA\nbad,xx,PLA\n")
-    with pytest.raises(JobError, match="jobs.csv row 3"):
+    with pytest.raises(JobError, match=r"jobs.csv row 3"):
         load_jobs_csv(path, MONDAY_8)
 
 
