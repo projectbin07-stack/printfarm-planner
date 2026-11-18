@@ -1,0 +1,8 @@
+# Demonstration data: invented jobs, not a real order book or measured print times.
+# Small enough (8 plates) for the exact solver in printfarm-planner compare.
+name,copies,print_time,material,nozzle_mm,size_mm,mass_g,due,priority,models,gcode_json
+enclosure-base,1,13h15m,PETG:black,0.4,220x160x70,390,30,1,P1S+A1,
+enclosure-lid,2,9h30m,PETG:black,0.4,220x160x30,210,30,1,P1S+A1,
+asa-bracket,2,3h10m,ASA:grey,0.6,90x60x40,64,,0,,
+logo-badge,1,2:25,PLA:white+PLA:orange,0.4,80x80x6,22,10,0,,
+mini-hinges,2,55,PLA:black,0.4,60x40x15,9,,0,,

@@ -156,3 +156,16 @@ def test_cli_bad_search_options_are_usage_errors(extra: list[str]) -> None:
     with pytest.raises(SystemExit) as exc:
         main(["compare", "--fleet", FLEET, JOBS, *extra])
     assert exc.value.code == 2
+
+
+def test_cli_compare_small_example_runs_exact(capsys: pytest.CaptureFixture[str]) -> None:
+    small = str(EXAMPLES / "small-jobs.csv")
+    args = ["compare", "--fleet", FLEET, small, "--start", START, "--json", *FAST]
+    assert main(args) == 0
+    methods = {m["method"]: m for m in json.loads(capsys.readouterr().out)["methods"]}
+    # Values observed on the invented example: greedy leaves logo-badge late.
+    assert methods["fill"]["objective"]["total"] == 940
+    assert methods["fill"]["objective"]["terms"]["tardiness"] == 125
+    assert methods["edd"]["objective"]["total"] == 955
+    assert methods["exact"]["objective"]["total"] == 810
+    assert methods["exact"]["note"].startswith("optimal in the sequence model")

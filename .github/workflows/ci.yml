@@ -42,3 +42,5 @@ jobs:
           printfarm-planner models
           printfarm-planner check --fleet examples/fleet.json examples/jobs.csv
           printfarm-planner plan --fleet examples/fleet.json examples/jobs.csv --start 2026-11-23T08:00 --html plan.html --csv plan.csv
+          printfarm-planner plan --fleet examples/fleet.json examples/jobs.csv --start 2026-11-23T08:00 --improve anneal --iterations 200
+          printfarm-planner compare --fleet examples/fleet.json examples/small-jobs.csv --start 2026-11-23T08:00 --html compare.html
