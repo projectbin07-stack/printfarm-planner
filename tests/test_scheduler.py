@@ -10,7 +10,7 @@ import itertools
 
 import pytest
 
-from helpers import MONDAY_8, fleet, job, printer
+from helpers import MONDAY_8, fleet, job, printer, random_instance
 from printfarm_planner.metrics import compute_metrics
 from printfarm_planner.model import Job, Plate
 from printfarm_planner.scheduler import Assignment, Dispatcher, plan, sequences_of, simulate
@@ -22,26 +22,77 @@ def times(assignments: list[Assignment]) -> list[tuple[str, float, float, float]
 
 def test_overnight_print_waits_for_morning() -> None:
     schedule = plan(fleet(printer()), [job("long", 720, copies=2)], MONDAY_8)
-    # plate 1: setup 0-5, print 5-725 (Mon 20:05); plate 2 setup Tue 08:00
+    # plate 1: setup 0-5, print 5-725 (Mon 20:05); plate 2 setup Tue 08:00, print
+    # 1445-2165 (Tue 20:05); the final plate is cleared Wed 08:00-08:05 (2880-2885)
     assert times(schedule.for_printer("P1")) == [
         ("long #1", 0, 5, 725),
         ("long #2", 1440, 1445, 2165),
     ]
+    clearing = schedule.clearing_for("P1")
+    assert clearing is not None
+    assert (clearing.ready, clearing.start, clearing.end) == (2165, 2880, 2885)
     metrics = compute_metrics(schedule)
-    assert metrics.makespan_min == 2165
-    assert metrics.printers[0].wait_off_hours_min == pytest.approx(1440 - 725)
+    assert metrics.makespan_min == 2885
+    assert metrics.printers[0].wait_off_hours_min == pytest.approx(715 + 715)
     assert metrics.printers[0].wait_in_hours_min == 0
-    assert metrics.fleet_utilisation == pytest.approx(1440 / 2165)
+    assert metrics.printers[0].final_wait_min == pytest.approx(715)
+    assert metrics.printers[0].finish_min == 2165
+    assert metrics.printers[0].cleared_min == 2885
+    assert metrics.final_wait_min == pytest.approx(715)
+    assert (metrics.operator_tasks, metrics.operator_min) == (3, 15)
+    assert metrics.fleet_utilisation == pytest.approx(1440 / 2885)
 
 
 def test_setup_must_fit_before_window_closes() -> None:
     # 593 min print ends 17:58; a 5 minute change no longer fits that day.
     schedule = plan(fleet(printer()), [job("j", 593, copies=2)], MONDAY_8)
     assert [a.setup_start for a in schedule.assignments] == [0, 1440]
+    # the second plate ends Tue 17:58 too, so it is cleared Wed 08:00
+    assert [c.start for c in schedule.clearings] == [2880]
     metrics = compute_metrics(schedule)
-    # 17:58-18:00 is inside the window, the rest of the night is not
-    assert metrics.wait_in_hours_min == pytest.approx(2)
-    assert metrics.wait_off_hours_min == pytest.approx(1440 - 600)
+    # 17:58-18:00 is inside the window, the rest of the night is not (twice)
+    assert metrics.wait_in_hours_min == pytest.approx(2 + 2)
+    assert metrics.wait_off_hours_min == pytest.approx(2 * (1440 - 600))
+
+
+def test_final_plate_clearing_needs_a_free_operator() -> None:
+    # One operator, round the clock. P1 setup 0-5 prints A 5-65; P2 setup 5-10 prints
+    # B 10-60. P2 is free first: cleared 60-65. P1 finishes at 65 and is cleared 65-70.
+    f = fleet(printer("P1"), printer("P2"), windows="24/7")
+    schedule = plan(f, [job("A", 60), job("B", 50)], MONDAY_8)
+    assert [(c.printer, c.start, c.end) for c in schedule.clearings] == [
+        ("P2", 60, 65),
+        ("P1", 65, 70),
+    ]
+    metrics = compute_metrics(schedule)
+    assert metrics.makespan_min == 70
+    assert metrics.final_wait_min == 0
+
+    # Same, but B prints 55: P1 and P2 both finish at 65. P1 is listed first, so it is
+    # cleared 65-70 and P2 waits for the operator until 70 (5 minutes in hours).
+    schedule = plan(f, [job("A", 60), job("B", 55)], MONDAY_8)
+    assert [(c.printer, c.start) for c in schedule.clearings] == [("P1", 65), ("P2", 70)]
+    metrics = compute_metrics(schedule)
+    assert metrics.makespan_min == 75
+    assert metrics.wait_in_hours_min == pytest.approx(5)
+    assert metrics.final_wait_min == pytest.approx(5)
+
+
+def test_clearing_rules() -> None:
+    state = Dispatcher(fleet(printer()), [job("a", 30, copies=2)], MONDAY_8, "manual")
+    with pytest.raises(ValueError, match="no finished plate"):
+        state.clear(0)  # nothing printed yet
+    state.place(0, state.plates[0])
+    state.clear(0)
+    with pytest.raises(ValueError, match="already cleared"):
+        state.place(0, state.plates[1])
+    with pytest.raises(ValueError, match="no finished plate"):
+        state.clear(0)
+
+
+def test_unused_printer_is_not_cleared() -> None:
+    schedule = plan(fleet(printer("P1"), printer("P2")), [job("a", 30)], MONDAY_8)
+    assert [c.printer for c in schedule.clearings] == ["P1"]
 
 
 def test_fill_runs_short_plates_first_and_long_one_overnight() -> None:
@@ -258,7 +309,24 @@ def test_simulate_reproduces_the_greedy_schedule(strategy: str, operators: int) 
     greedy = plan(f, jobs, MONDAY_8, strategy=strategy)
     again = simulate(f, jobs, MONDAY_8, sequences_of(greedy), calendar=greedy.calendar)
     assert again.assignments == greedy.assignments
+    assert again.clearings == greedy.clearings
+    assert len(greedy.clearings) == len({a.printer for a in greedy.assignments})
     assert again.strategy == "sequence"
+
+
+@pytest.mark.parametrize("seed", range(30))
+def test_simulate_reproduces_greedy_clearings_on_generated_instances(seed: int) -> None:
+    f, jobs = random_instance(seed, 4 + seed % 9)
+    for strategy in ("fill", "edd"):
+        greedy = plan(f, jobs, MONDAY_8, strategy=strategy)
+        again = simulate(f, jobs, MONDAY_8, sequences_of(greedy), calendar=greedy.calendar)
+        assert again.assignments == greedy.assignments
+        assert again.clearings == greedy.clearings
+        # every clearing follows its printer's final plate and fits in a labour window
+        for clearing in greedy.clearings:
+            last = max(a.end for a in greedy.assignments if a.printer == clearing.printer)
+            assert clearing.ready == last <= clearing.start
+            assert greedy.calendar.earliest_fit(clearing.start, 5) == clearing.start
 
 
 def test_simulate_follows_a_given_order() -> None:

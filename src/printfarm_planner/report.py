@@ -112,6 +112,10 @@ def format_text(schedule: Schedule, metrics: Metrics, objective: Objective | Non
             f"{format_duration(metrics.wait_off_hours_min)} outside labour windows, "
             f"{format_duration(metrics.wait_in_hours_min)} inside"
         )
+        out.append(
+            "  Of that, final plates waiting to be cleared: "
+            f"{format_duration(metrics.final_wait_min)}"
+        )
         if metrics.mass_g is not None:
             out.append(f"  Filament: {metrics.mass_g:.1f} g")
         out.append("")
@@ -128,15 +132,28 @@ def format_text(schedule: Schedule, metrics: Metrics, objective: Objective | Non
                 format_duration(s.setup_min),
                 format_duration(s.wait_off_hours_min),
                 format_duration(s.wait_in_hours_min),
+                format_duration(s.final_wait_min),
+                _when(schedule, s.cleared_min) if s.plates else "-",
                 f"{s.utilisation * 100:.1f}%",
             ]
             for s in metrics.printers
         ]
-        out.append("Printers")
+        out.append("Printers (wait off / wait in include the final plate's wait)")
         out += text_table(
-            ["printer", "model", "plates", "printing", "setup", "wait off", "wait in", "util"],
+            [
+                "printer",
+                "model",
+                "plates",
+                "printing",
+                "setup",
+                "wait off",
+                "wait in",
+                "final wait",
+                "cleared",
+                "util",
+            ],
             rows,
-            {2, 3, 4, 5, 6, 7},
+            {2, 3, 4, 5, 6, 7, 9},
         )
         out.append("")
 
@@ -245,6 +262,19 @@ def to_json_dict(
                 "spools": list(a.plate.job.spools),
             }
             for a in sorted(schedule.assignments, key=lambda a: (a.start, a.printer))
+        ],
+        "clearings": [
+            {
+                "printer": c.printer,
+                "operator": c.operator + 1,
+                "final_plate_end": _iso(schedule, c.ready),
+                "start": _iso(schedule, c.start),
+                "end": _iso(schedule, c.end),
+                "final_plate_end_min": round(c.ready, 3),
+                "start_min": round(c.start, 3),
+                "end_min": round(c.end, 3),
+            }
+            for c in sorted(schedule.clearings, key=lambda c: (c.start, c.printer))
         ],
         "unscheduled": [{"job": u.job.name, "reasons": u.reasons} for u in schedule.unscheduled],
         "metrics": metrics.to_dict(),

@@ -12,16 +12,18 @@ from printfarm_planner.scheduler import plan
 
 def test_terms_of_an_overnight_plan() -> None:
     # Hand timeline (Mon-Fri 08:00-18:00): long #1 prints 5-725, waits until Tue 08:00
-    # (minute 1440), long #2 prints 1445-2165. Due at 2000 with priority 2, so w = 3.
+    # (minute 1440), long #2 prints 1445-2165 and waits until Wed 08:00 (2880) to be
+    # cleared, which ends the plan at 2885. Due at 2000 with priority 2, so w = 3;
+    # tardiness uses the print finish (2165).
     jobs = [job("long", 720, copies=2, due=2000, priority=2)]
     objective = evaluate(plan(fleet(printer()), jobs, MONDAY_8))
-    assert objective.makespan == 2165
-    assert objective.wait_off == pytest.approx(1440 - 725)
+    assert objective.makespan == 2885
+    assert objective.wait_off == pytest.approx((1440 - 725) + (2880 - 2165))
     assert objective.wait_in == 0
     assert objective.material_changes == 0
     assert objective.tardiness == pytest.approx(3 * (2165 - 2000))
     # defaults: 1 x tardiness + 1 x makespan + 0.2 x wait off + 0.5 x wait in + 10 x changes
-    assert objective.total == pytest.approx(495 + 2165 + 0.2 * 715)
+    assert objective.total == pytest.approx(495 + 2885 + 0.2 * 1430)
 
 
 def test_material_changes_and_wait_in_are_weighted() -> None:
@@ -33,11 +35,12 @@ def test_material_changes_and_wait_in_are_weighted() -> None:
     assert objective.contributions()["material_changes"] == 14
     assert objective.total == 14
 
-    # 593 min print ends 17:58: 2 minutes of in-hours waiting, then the night
+    # 593 min prints end 17:58 on Monday and Tuesday: 2 minutes of in-hours waiting
+    # before each night (the second before its clearing on Wednesday)
     sched = plan(fleet(printer()), [job("j", 593, copies=2)], MONDAY_8)
     only_in = evaluate(sched, Weights(tardiness=0, makespan=0, wait_off=0, wait_in=1))
-    assert only_in.wait_in == pytest.approx(2)
-    assert only_in.total == pytest.approx(2)
+    assert only_in.wait_in == pytest.approx(4)
+    assert only_in.total == pytest.approx(4)
 
 
 def test_job_weight_from_priority() -> None:

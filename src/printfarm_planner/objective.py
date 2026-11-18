@@ -1,16 +1,18 @@
 """The scheduling objective: a weighted sum of terms that are also reported one by one.
 
     J = a_T * sum_j w_j * max(0, C_j - d_j)      weighted tardiness (minutes)
-      + a_C * C_max                              makespan (minutes)
+      + a_C * C_max                              makespan: last final plate cleared (minutes)
       + a_off * W_off                            finished plates waiting outside labour windows
       + a_in * W_in                              finished plates waiting inside labour windows
       + a_M * N_M                                material changes (count)
 
 ``w_j = max(1, 1 + priority_j)``, ``C_j`` is when the last plate of job ``j``
-finishes and ``d_j`` its due time; jobs without a due date add nothing. The
-waiting terms are the figures from :mod:`.metrics` (gaps between consecutive
-plates on a printer, split by the labour calendar). Lower is better. See
-``docs/algorithm.md`` for the reasoning behind the default weights.
+finishes printing and ``d_j`` its due time; jobs without a due date add nothing.
+The waiting terms are the figures from :mod:`.metrics`: every finished plate
+waits until the next operator task on its printer starts, which is the next
+plate's setup or, for the final plate, its clearing. The wait is split by the
+labour calendar. Lower is better. See ``docs/algorithm.md`` for the reasoning
+behind the default weights.
 """
 
 from __future__ import annotations

@@ -8,6 +8,10 @@ Model
   one labour window, and each operator does one task at a time.
 * Printing itself needs nobody, so prints run through nights and weekends; a
   plate that finishes outside a window waits until someone is back.
+* After its last plate, each printer that was used gets a **clearing** task of
+  ``plate_change_min`` (remove the final plate). It is booked by the same
+  dispatch rule as a plate change, so it also needs a labour window and a free
+  operator, and the plan ends when the last clearing task ends.
 * The scheduler repeatedly takes the printer whose next operator slot comes
   first and picks a plate for it with the chosen strategy:
 
@@ -41,6 +45,7 @@ from .model import Job, Plate, Printer
 __all__ = [
     "STRATEGIES",
     "Assignment",
+    "Clearing",
     "Dispatcher",
     "Schedule",
     "Unscheduled",
@@ -76,6 +81,17 @@ class Assignment:
 
 
 @dataclass(frozen=True, slots=True)
+class Clearing:
+    """The operator task that removes the final plate from a printer."""
+
+    printer: str
+    operator: int
+    ready: float  # the final plate finished
+    start: float
+    end: float
+
+
+@dataclass(frozen=True, slots=True)
 class Unscheduled:
     job: Job
     reasons: dict[str, list[str]]  # printer name -> why it cannot run the job
@@ -91,9 +107,14 @@ class Schedule:
     jobs: tuple[Job, ...]
     assignments: list[Assignment] = field(default_factory=list)
     unscheduled: list[Unscheduled] = field(default_factory=list)
+    #: one per printer that ran a plate (empty only in hand-built schedules)
+    clearings: list[Clearing] = field(default_factory=list)
 
     def for_printer(self, name: str) -> list[Assignment]:
         return sorted((a for a in self.assignments if a.printer == name), key=lambda a: a.start)
+
+    def clearing_for(self, name: str) -> Clearing | None:
+        return next((c for c in self.clearings if c.printer == name), None)
 
 
 def _needs_change(loaded: tuple[str, ...], spools: tuple[str, ...]) -> bool:
@@ -115,8 +136,9 @@ class Dispatcher:
     It holds the operator pool, when each printer becomes free and which spools
     each printer holds. The greedy :func:`plan`, :func:`simulate` (fixed plate
     sequences, used by the local search) and the exact solver all book plates
-    through :meth:`place`, so labour windows, operator capacity, material
-    changes and compatibility are enforced by the same code everywhere.
+    through :meth:`place` and final-plate clearing through :meth:`clear`, so
+    labour windows, operator capacity, material changes and compatibility are
+    enforced by the same code everywhere.
     """
 
     def __init__(
@@ -157,9 +179,12 @@ class Dispatcher:
             self.plates.extend(Plate(job, number) for number in range(1, job.copies + 1))
         self.ready = [0.0] * len(self.printers)
         self.loaded = [p.loaded for p in self.printers]
+        #: printer has run a plate / its final plate has been cleared
+        self.used = [False] * len(self.printers)
+        self.cleared = [False] * len(self.printers)
 
     def slot(self, index: int) -> float:
-        """Earliest time an operator could start a plate change on printer ``index``."""
+        """Earliest time an operator could start a plate change or clearing on ``index``."""
         return self.pool.earliest(self.ready[index], self.labour.plate_change_min)[0]
 
     def needs_change(self, index: int, job: Job) -> bool:
@@ -171,6 +196,8 @@ class Dispatcher:
         job = plate.job
         if index not in self.capable.get(job.name, frozenset()):
             raise ValueError(f"{plate.label} cannot run on {printer.name}")
+        if self.cleared[index]:
+            raise ValueError(f"{printer.name} is already cleared and takes no more plates")
         needs = _needs_change(self.loaded[index], job.spools)
         setup = self.labour.plate_change_min + (self.labour.material_change_min if needs else 0.0)
         setup_start, operator = self.pool.earliest(self.ready[index], setup)
@@ -191,7 +218,40 @@ class Dispatcher:
         )
         self.schedule.assignments.append(assignment)
         self.ready[index] = end
+        self.used[index] = True
         return assignment
+
+    def clear(self, index: int) -> Clearing:
+        """Book removing the final plate from printer ``index``; it takes no more plates.
+
+        The task lasts ``plate_change_min`` and is booked like a plate change:
+        inside one labour window, with a free operator.
+        """
+        printer = self.printers[index]
+        if not self.used[index] or self.cleared[index]:
+            raise ValueError(f"{printer.name} has no finished plate to clear")
+        duration = self.labour.plate_change_min
+        begin, operator = self.pool.earliest(self.ready[index], duration)
+        self.pool.book(operator, begin, duration)
+        clearing = Clearing(
+            printer=printer.name,
+            operator=operator,
+            ready=self.ready[index],
+            start=begin,
+            end=begin + duration,
+        )
+        self.schedule.clearings.append(clearing)
+        self.cleared[index] = True
+        return clearing
+
+    def awaiting_clear(self, index: int) -> bool:
+        """``index`` has run a plate and its final plate is not cleared yet."""
+        return self.used[index] and not self.cleared[index]
+
+    def clear_all(self) -> None:
+        """Clear every printer still holding a final plate, in dispatch order."""
+        while pending := [i for i in range(len(self.printers)) if self.awaiting_clear(i)]:
+            self.clear(min(pending, key=lambda i: (self.slot(i), i)))
 
     def copy(self) -> Dispatcher:
         """An independent copy of the booking state (the calendar is shared)."""
@@ -199,10 +259,13 @@ class Dispatcher:
         other.pool = self.pool.copy()
         other.ready = list(self.ready)
         other.loaded = list(self.loaded)
+        other.used = list(self.used)
+        other.cleared = list(self.cleared)
         other.schedule = replace(
             self.schedule,
             assignments=list(self.schedule.assignments),
             unscheduled=list(self.schedule.unscheduled),
+            clearings=list(self.schedule.clearings),
         )
         return other
 
@@ -231,9 +294,13 @@ def plan(
     swap = state.labour.material_change_min
 
     while remaining:
+        # Candidates: printers that can still take a plate, and used printers that
+        # cannot and wait for their final plate to be cleared. The printer whose
+        # next operator slot comes first is served.
         best: tuple[float, int] | None = None
         for index in range(len(printers)):
-            if not any(index in capable[p.job.name] for p in remaining):
+            can_run = any(index in capable[p.job.name] for p in remaining)
+            if not can_run and not state.awaiting_clear(index):
                 continue
             slot = state.slot(index)
             if best is None or (slot, index) < best:
@@ -241,6 +308,9 @@ def plan(
         if best is None:  # pragma: no cover - every remaining plate has a capable printer
             break
         slot, index = best
+        if not any(index in capable[p.job.name] for p in remaining):
+            state.clear(index)
+            continue
 
         def key(plate: Plate, slot: float = slot, index: int = index) -> tuple[float, ...]:
             job = plate.job
@@ -257,6 +327,7 @@ def plan(
         plate = min((p for p in remaining if index in capable[p.job.name]), key=key)
         state.place(index, plate)
         remaining.remove(plate)
+    state.clear_all()
     return state.schedule
 
 
@@ -281,9 +352,10 @@ def simulate(
 
     Plates are booked with the same dispatch rule as :func:`plan`: the printer
     whose next operator slot comes first gets the operator next (ties go to the
-    printer listed first in the fleet). Every plate that some printer can run
-    must appear exactly once. Passing ``sequences_of(plan(...))`` reproduces the
-    greedy schedule exactly.
+    printer listed first in the fleet). A printer whose sequence is used up
+    competes in the same way for the clearing of its final plate. Every plate
+    that some printer can run must appear exactly once. Passing
+    ``sequences_of(plan(...))`` reproduces the greedy schedule exactly.
     """
     state = Dispatcher(fleet, jobs, start, strategy, calendar)
     index_of = {p.name: i for i, p in enumerate(state.printers)}
@@ -300,11 +372,14 @@ def simulate(
     while True:
         best: tuple[float, int] | None = None
         for index, queue in enumerate(queues):
-            if queue:
+            if queue or state.awaiting_clear(index):
                 slot = state.slot(index)
                 if best is None or (slot, index) < best:
                     best = (slot, index)
         if best is None:
             return state.schedule
         index = best[1]
-        state.place(index, queues[index].popleft())
+        if queues[index]:
+            state.place(index, queues[index].popleft())
+        else:
+            state.clear(index)

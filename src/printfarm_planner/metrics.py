@@ -20,11 +20,16 @@ class PrinterStats:
     setup_min: float
     #: Finished plate sitting on the bed, split by whether a labour window was open
     #: (in-hours waits come from operator contention or a window closing soon).
+    #: Includes the final plate's wait until it is cleared.
     wait_off_hours_min: float
     wait_in_hours_min: float
     material_changes: int
     utilisation: float  # print time / makespan
-    finish_min: float
+    finish_min: float  # last plate finished printing
+    #: of the waiting above, the final plate's wait until it is cleared
+    final_wait_min: float
+    #: final plate cleared (end of the clearing task); equals finish_min if none
+    cleared_min: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +54,8 @@ class Metrics:
     material_changes: int
     wait_off_hours_min: float
     wait_in_hours_min: float
+    #: of the waiting above, final plates waiting to be cleared
+    final_wait_min: float
     mass_g: float | None
     late_jobs: int
     unscheduled_jobs: int
@@ -64,20 +71,31 @@ def _overlap(calendar_windows: list[tuple[float, float]]) -> float:
 
 
 def compute_metrics(schedule: Schedule) -> Metrics:
+    """Figures for ``schedule``. The makespan ends with the last clearing task."""
     cal = schedule.calendar
-    makespan = max((a.end for a in schedule.assignments), default=0.0)
+    makespan = max(
+        [a.end for a in schedule.assignments] + [c.end for c in schedule.clearings], default=0.0
+    )
     printer_stats: list[PrinterStats] = []
-    total_off = total_busy = 0.0
+    total_off = total_busy = total_final = 0.0
     for printer in schedule.printers:
         rows = schedule.for_printer(printer.name)
+        clearing = schedule.clearing_for(printer.name)
+        # each finished plate waits until the operator task after it starts: the
+        # next plate's setup or, for the final plate, its clearing
+        gaps = [(previous.end, current.setup_start) for previous, current in pairwise(rows)]
+        final = 0.0
+        if clearing is not None:
+            gaps.append((clearing.ready, clearing.start))
+            final = max(0.0, clearing.start - clearing.ready)
         off = busy = 0.0
-        for previous, current in pairwise(rows):
-            gap_start, gap_end = previous.end, current.setup_start
+        for gap_start, gap_end in gaps:
             if gap_end > gap_start:
                 inside = _overlap(list(cal.windows_between(gap_start, gap_end)))
                 busy += inside
                 off += (gap_end - gap_start) - inside
         print_min = sum(a.print_min for a in rows)
+        finish = max((a.end for a in rows), default=0.0)
         printer_stats.append(
             PrinterStats(
                 name=printer.name,
@@ -89,11 +107,14 @@ def compute_metrics(schedule: Schedule) -> Metrics:
                 wait_in_hours_min=busy,
                 material_changes=sum(a.material_change for a in rows),
                 utilisation=print_min / makespan if makespan > 0 else 0.0,
-                finish_min=max((a.end for a in rows), default=0.0),
+                finish_min=finish,
+                final_wait_min=final,
+                cleared_min=clearing.end if clearing is not None else finish,
             )
         )
         total_off += off
         total_busy += busy
+        total_final += final
 
     job_results: list[JobResult] = []
     for job in schedule.jobs:
@@ -123,11 +144,13 @@ def compute_metrics(schedule: Schedule) -> Metrics:
         plates=len(schedule.assignments),
         print_min=total_print,
         fleet_utilisation=total_print / capacity if capacity > 0 else 0.0,
-        operator_min=sum(a.setup_min for a in schedule.assignments),
-        operator_tasks=len(schedule.assignments),
+        operator_min=sum(a.setup_min for a in schedule.assignments)
+        + sum(c.end - c.start for c in schedule.clearings),
+        operator_tasks=len(schedule.assignments) + len(schedule.clearings),
         material_changes=sum(a.material_change for a in schedule.assignments),
         wait_off_hours_min=total_off,
         wait_in_hours_min=total_busy,
+        final_wait_min=total_final,
         mass_g=sum(known) if known and len(known) == len(masses) else None,
         late_jobs=sum(1 for j in job_results if j.late_min > 0),
         unscheduled_jobs=len(schedule.unscheduled),

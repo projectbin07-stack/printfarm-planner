@@ -82,13 +82,14 @@ def test_plan_reports_objective_in_text_json_and_html() -> None:
     text = format_text(schedule, metrics, objective)
     assert "Objective (lower is better; minutes, weighted)" in text
     assert re.search(r"weighted tardiness\s+165 min\s+1\s+165\.0", text)
-    assert re.search(r"wait outside labour hours\s+715 min\s+0\.2\s+143\.0", text)
-    assert re.search(r"total\s+2473\.0", text)  # 165 + 2165 + 143
+    # two overnight waits of 715 min: after plate 1, and plate 2 until it is cleared
+    assert re.search(r"wait outside labour hours\s+1430 min\s+0\.2\s+286\.0", text)
+    assert re.search(r"total\s+3336\.0", text)  # 165 + 2885 + 286
     data = to_json_dict(schedule, metrics, objective)
-    assert data["objective"]["total"] == 2473
-    assert data["objective"]["terms"]["makespan"] == 2165
+    assert data["objective"]["total"] == 3336
+    assert data["objective"]["terms"]["makespan"] == 2885
     html = render_html(schedule, metrics, "t", objective)
-    assert "<h2>Objective</h2>" in html and "2473.0" in html
+    assert "<h2>Objective</h2>" in html and "3336.0" in html
     assert "Objective" not in format_text(schedule, metrics)
 
 
@@ -163,9 +164,11 @@ def test_cli_compare_small_example_runs_exact(capsys: pytest.CaptureFixture[str]
     args = ["compare", "--fleet", FLEET, small, "--start", START, "--json", *FAST]
     assert main(args) == 0
     methods = {m["method"]: m for m in json.loads(capsys.readouterr().out)["methods"]}
-    # Values observed on the invented example: greedy leaves logo-badge late.
-    assert methods["fill"]["objective"]["total"] == 940
+    # Values observed on the invented example: greedy leaves logo-badge late, and every
+    # plan ends with plates printing overnight that are cleared on Tuesday morning.
+    assert methods["fill"]["objective"]["total"] == 1845.5
     assert methods["fill"]["objective"]["terms"]["tardiness"] == 125
-    assert methods["edd"]["objective"]["total"] == 955
-    assert methods["exact"]["objective"]["total"] == 810
+    assert methods["edd"]["objective"]["total"] == 2057.5
+    assert methods["exact"]["objective"]["total"] == 1455
+    assert methods["exact"]["objective"]["terms"]["tardiness"] == 0
     assert methods["exact"]["note"].startswith("optimal in the sequence model")

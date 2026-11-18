@@ -14,7 +14,8 @@ from printfarm_planner.search import NEIGHBOURHOODS, SearchConfig, improve
 
 
 def assert_valid(schedule: Schedule) -> None:
-    """Every plate once, compatible printer, no overlaps, operator tasks inside windows."""
+    """Every plate once, compatible printer, no overlaps, operator tasks inside windows,
+    and every used printer's final plate cleared once, after it finished."""
     expected = sorted((j.name, c) for j in schedule.jobs for c in range(1, j.copies + 1))
     got = sorted((a.plate.job.name, a.plate.copy) for a in schedule.assignments)
     assert got == expected
@@ -26,9 +27,16 @@ def assert_valid(schedule: Schedule) -> None:
     for p in schedule.printers:
         for prev, cur in itertools.pairwise(schedule.for_printer(p.name)):
             assert cur.setup_start >= prev.end
+    used = sorted({a.printer for a in schedule.assignments})
+    assert sorted(c.printer for c in schedule.clearings) == used
+    for c in schedule.clearings:
+        assert c.start >= max(a.end for a in schedule.for_printer(c.printer)) == c.ready
+        lo, hi = schedule.calendar.next_window(c.start)
+        assert lo <= c.start and c.end <= hi
     for operator in range(schedule.labour.operators):
         tasks = sorted(
-            (a.setup_start, a.start) for a in schedule.assignments if a.operator == operator
+            [(a.setup_start, a.start) for a in schedule.assignments if a.operator == operator]
+            + [(c.start, c.end) for c in schedule.clearings if c.operator == operator]
         )
         for (_, end), (begin, _) in itertools.pairwise(tasks):
             assert begin >= end
@@ -109,16 +117,21 @@ def test_single_plate_has_no_moves() -> None:
 
 
 def test_finds_the_better_order_from_edd() -> None:
-    # edd (no due dates) runs the 10 h plate first: it ends 18:05, waits all night,
-    # and B runs on Tuesday (makespan 1815). Running B first ends at 980, as in
-    # test_scheduler.test_fill_runs_short_plates_first_and_long_one_overnight.
+    # edd (no due dates) runs the 10 h plate first: it ends 18:05, waits all night
+    # (835 min off hours), B runs on Tuesday and the last B is cleared 1815-1820:
+    # J = 1820 + 0.2 x 835 = 1987. Running B first, as in
+    # test_scheduler.test_fill_runs_short_plates_first_and_long_one_overnight, ends A
+    # at 980 (Tue 00:20); A waits until Tue 08:00 and is cleared 1440-1445:
+    # J = 1445 + 0.2 x 460 = 1537. (B, B, A, B gives 1570 + 0.2 x 585 = 1687.)
     f = fleet(printer())
     jobs = [job("A", 600), job("B", 120, copies=3)]
     start = plan(f, jobs, MONDAY_8, "edd")
-    assert evaluate(start).makespan == 1815
+    assert evaluate(start).makespan == 1820
+    assert evaluate(start).total == pytest.approx(1987)
     result = improve(f, jobs, MONDAY_8, start, config=SearchConfig(iterations=200, seed=0))
-    assert result.objective.makespan == 980
-    assert result.objective.wait_off == 0
+    assert result.objective.makespan == 1445
+    assert result.objective.wait_off == 460
+    assert result.objective.total == pytest.approx(1537)
     assert [p.label for p in sequences_of(result.schedule)["P1"]][-1] == "A"
 
 
@@ -133,9 +146,10 @@ def test_reassign_balances_printers() -> None:
     longs = [p for p in everything if p.job.name == "long"]
     shorts = [p for p in everything if p.job.name == "short"]
     lopsided = simulate(f, jobs, MONDAY_8, {"P1": longs, "P2": shorts})
-    assert evaluate(lopsided, weights).makespan == 1210  # 5 + 600 + 5 + 600
+    # 5 + 600 + 5 + 600, then P1 is cleared 1210-1215
+    assert evaluate(lopsided, weights).makespan == 1215
     result = improve(f, jobs, MONDAY_8, lopsided, weights, SearchConfig(iterations=200))
-    assert result.objective.makespan < 1210
+    assert result.objective.makespan < 1215
     assert {a.printer for a in result.schedule.assignments if a.plate.job.name == "long"} == {
         "P1",
         "P2",

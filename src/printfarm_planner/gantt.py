@@ -145,15 +145,28 @@ def chart(schedule: Schedule, metrics: Metrics) -> str:
             f"{printer.nozzle_mm:g} mm</text>"
         )
         rows = schedule.for_printer(printer.name)
-        for previous, current in pairwise(rows):
-            if current.setup_start - previous.end > 0.5:
+        clearing = schedule.clearing_for(printer.name)
+        waits = [
+            (previous.plate.label, previous.end, current.setup_start, "for an operator")
+            for previous, current in pairwise(rows)
+        ]
+        if clearing is not None and rows:
+            waits.append((rows[-1].plate.label, clearing.ready, clearing.start, "to be cleared"))
+        for label, lo, hi, why in waits:
+            if hi - lo > 0.5:
                 parts.append(
-                    f'<rect x="{x(previous.end):.1f}" y="{bar_y + _BAR_H / 2 - 3:.1f}" '
-                    f'width="{x(current.setup_start) - x(previous.end):.1f}" height="6" '
-                    f'fill="url(#wait)"><title>{escape(previous.plate.label)} waits '
-                    f"{format_duration(current.setup_start - previous.end)} for an operator"
-                    "</title></rect>"
+                    f'<rect x="{x(lo):.1f}" y="{bar_y + _BAR_H / 2 - 3:.1f}" '
+                    f'width="{x(hi) - x(lo):.1f}" height="6" '
+                    f'fill="url(#wait)"><title>{escape(label)} waits '
+                    f"{format_duration(hi - lo)} {why}</title></rect>"
                 )
+        if clearing is not None:
+            parts.append(
+                f'<rect x="{x(clearing.start):.1f}" y="{bar_y:.1f}" '
+                f'width="{max(1.5, x(clearing.end) - x(clearing.start)):.1f}" '
+                f'height="{_BAR_H}" fill="#2b2d31"><title>clear final plate, '
+                f"{cal.to_datetime(clearing.start):%a %d %b %H:%M}</title></rect>"
+            )
         for a in rows:
             setup_w = max(1.5, x(a.start) - x(a.setup_start))
             parts.append(
@@ -191,7 +204,7 @@ def legend(schedule: Schedule) -> str:
         f'<span><i style="background:{_MATERIAL_COLOURS.get(m, _OTHER)}"></i>{escape(m)}</span>'
         for m in used
     ]
-    items.append('<span><i style="background:#2b2d31"></i>operator setup</span>')
+    items.append('<span><i style="background:#2b2d31"></i>operator setup or clearing</span>')
     items.append(
         '<span><i style="background:repeating-linear-gradient(45deg,#c0392b 0 2px,'
         'transparent 2px 5px)"></i>finished, waiting for operator</span>'
@@ -236,7 +249,10 @@ def render_html(
         (str(metrics.plates), "plates"),
         (format_duration(metrics.operator_min), f"operator time, {metrics.operator_tasks} tasks"),
         (str(metrics.material_changes), "material changes"),
-        (format_duration(metrics.wait_off_hours_min), "plates waiting outside labour hours"),
+        (
+            format_duration(metrics.wait_off_hours_min),
+            "plates waiting outside labour hours, incl. final plates",
+        ),
         (str(metrics.late_jobs), "late jobs"),
     ]
     if metrics.mass_g is not None:
@@ -268,16 +284,20 @@ def render_html(
         '<div class="table"><table><tr><th>Printer</th><th>Model</th><th class="num">Plates</th>'
         '<th class="num">Printing</th><th class="num">Setup</th>'
         '<th class="num">Wait (off hours)</th>'
-        '<th class="num">Wait (in hours)</th><th class="num">Changes</th>'
+        '<th class="num">Wait (in hours)</th><th class="num">Final plate waits</th>'
+        '<th>Final plate cleared</th><th class="num">Changes</th>'
         '<th class="num">Utilisation</th></tr>',
     ]
     for s in metrics.printers:
+        cleared = when(s.cleared_min) if s.plates else "-"
         body.append(
             f"<tr><td>{escape(s.name)}</td><td>{escape(s.model)}</td><td class=num>{s.plates}</td>"
             f"<td class=num>{format_duration(s.print_min)}</td>"
             f"<td class=num>{format_duration(s.setup_min)}</td>"
             f"<td class=num>{format_duration(s.wait_off_hours_min)}</td>"
             f"<td class=num>{format_duration(s.wait_in_hours_min)}</td>"
+            f"<td class=num>{format_duration(s.final_wait_min)}</td>"
+            f"<td>{cleared}</td>"
             f"<td class=num>{s.material_changes}</td>"
             f"<td class=num>{s.utilisation * 100:.1f}%</td></tr>"
         )

@@ -59,12 +59,39 @@ def test_known_optimum_by_hand() -> None:
     # Two equal printers, one operator, round-the-clock labour, plates of 100 and
     # 60 minutes x2. Setups are serial, so the printer served first should take the two
     # small plates: P1 setup 0-5 prints 5-65, P2 setup 5-10 prints big 10-110, P1 setup
-    # 65-70 prints 70-130. (Big first on P1 would end the second small plate at 135.)
+    # 65-70 prints 70-130; P2 is cleared 110-115 and P1 130-135. (Big first on P1 would
+    # end the second small plate at 135 and its clearing at 140.)
     f = fleet(printer("P1"), printer("P2"), windows="24/7")
     jobs = [job("big", 100), job("small", 60, copies=2)]
     weights = Weights(tardiness=0, makespan=1, wait_off=0, wait_in=0, material_changes=0)
     solved = solve_exact(f, jobs, MONDAY_8, weights)
-    assert solved.objective is not None and solved.objective.makespan == 130
+    assert solved.objective is not None and solved.objective.makespan == 135
+    assert solved.schedule is not None
+    assert [(c.printer, c.start, c.end) for c in solved.schedule.clearings] == [
+        ("P2", 110, 115),
+        ("P1", 130, 135),
+    ]
+
+
+def test_final_wait_is_part_of_the_optimum() -> None:
+    # Two printers, one operator, Mon-Fri 08:00-18:00, only waiting is weighted.
+    # Long (590 min) on P1, set up 0-5, ends 595 (17:55) and is cleared 595-600 before
+    # the window closes; short (60 min) on P2, set up 5-10, ends 70 and is cleared
+    # 70-75: no waiting at all. The other way round, long is set up 5-10 and ends at
+    # 600 (18:00), too late to clear, and waits 840 min overnight; one printer for both
+    # also leaves the second plate waiting overnight. The v0.2.0 objective, which did
+    # not count the final plate's wait, scored all of these 0.
+    f = fleet(printer("P1"), printer("P2"))
+    jobs = [job("long", 590), job("short", 60)]
+    weights = Weights(tardiness=0, makespan=0, wait_off=1, wait_in=1, material_changes=0)
+    solved = solve_exact(f, jobs, MONDAY_8, weights)
+    assert solved.optimal and solved.schedule is not None and solved.objective is not None
+    assert solved.objective.total == 0
+    assert [(a.printer, a.plate.job.name) for a in solved.schedule.assignments] == [
+        ("P1", "long"),
+        ("P2", "short"),
+    ]
+    assert sorted(c.start for c in solved.schedule.clearings) == [70, 595]
 
 
 def test_limit_and_node_budget() -> None:
@@ -91,22 +118,22 @@ def test_measured_gaps_on_generated_instances() -> None:
 
     These are observations on this generator, not a general claim. The local
     search reached the exact optimum on most instances but not all; on one
-    7-plate instance it stayed in a local optimum 147% above it.
+    7-plate instance it stayed in a local optimum 78% above it.
     """
     small = run(5, range(40))
     print(report(small))
     assert small.violations == []
-    assert (small.optimal("fill"), small.optimal("edd")) == (11, 13)
-    assert (small.optimal("hill"), small.optimal("anneal")) == (37, 33)
-    assert small.mean_gap("hill") == pytest.approx(0.0036, abs=5e-5)
-    assert small.max_gap("hill") == pytest.approx(0.0897, abs=5e-5)
-    assert small.unchanged == {"hill": 16, "anneal": 15}
+    assert (small.optimal("fill"), small.optimal("edd")) == (7, 7)
+    assert (small.optimal("hill"), small.optimal("anneal")) == (36, 35)
+    assert small.mean_gap("hill") == pytest.approx(0.0054, abs=5e-5)
+    assert small.max_gap("hill") == pytest.approx(0.0877, abs=5e-5)
+    assert small.unchanged == {"hill": 10, "anneal": 9}
 
     larger = run(7, range(40))
     print(report(larger))
     assert larger.violations == []
-    assert (larger.optimal("fill"), larger.optimal("edd")) == (5, 3)
-    assert (larger.optimal("hill"), larger.optimal("anneal")) == (30, 30)
-    assert larger.mean_gap("hill") == pytest.approx(0.0484, abs=5e-5)
-    assert larger.max_gap("hill") == pytest.approx(1.4714, abs=5e-5)
-    assert larger.unchanged == {"hill": 8, "anneal": 8}
+    assert (larger.optimal("fill"), larger.optimal("edd")) == (4, 2)
+    assert (larger.optimal("hill"), larger.optimal("anneal")) == (28, 34)
+    assert larger.mean_gap("hill") == pytest.approx(0.0328, abs=5e-5)
+    assert larger.max_gap("hill") == pytest.approx(0.7814, abs=5e-5)
+    assert larger.unchanged == {"hill": 6, "anneal": 5}

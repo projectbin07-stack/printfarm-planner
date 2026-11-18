@@ -28,9 +28,13 @@ def test_format_duration() -> None:
 def test_text_report() -> None:
     schedule = overnight()
     text = format_text(schedule, compute_metrics(schedule))
-    assert "Start Mon 23 Nov 08:00   Finish Tue 24 Nov 20:05   Makespan 36h 05m" in text
-    assert "2 plates, 24h 00m printing, fleet utilisation 66.5%" in text  # 1440 / 2165
-    assert "11h 55m outside labour windows" in text  # 20:05 -> 08:00
+    # the last plate ends Tue 20:05 and is cleared Wed 08:00-08:05, which ends the plan
+    assert "Start Mon 23 Nov 08:00   Finish Wed 25 Nov 08:05   Makespan 48h 05m" in text
+    assert "2 plates, 24h 00m printing, fleet utilisation 49.9%" in text  # 1440 / 2885
+    # 20:05 -> 08:00 twice: after plate 1, and after plate 2 until it is cleared
+    assert "23h 50m outside labour windows, 0m inside" in text
+    assert "Of that, final plates waiting to be cleared: 11h 55m" in text
+    assert "Wed 25 Nov 08:05" in text.split("Printers")[1].split("Schedule")[0]
     assert "Filament: 25.0 g" in text
     assert "long #2  Tue 24 Nov 08:05  Tue 24 Nov 20:05  12h 00m  PLA" in text
     assert "LATE 11h 05m" in text  # finish 2165, due 1500
@@ -61,7 +65,20 @@ def test_json_export_round_trips() -> None:
     assert data["start"] == "2026-11-23T08:00"
     assert data["strategy"] == "fill"
     assert data["assignments"][1]["print_end_min"] == 2165
-    assert data["metrics"]["makespan_min"] == 2165
+    assert data["metrics"]["makespan_min"] == 2885
+    assert data["metrics"]["final_wait_min"] == 715
+    assert data["clearings"] == [
+        {
+            "printer": "P1",
+            "operator": 1,
+            "final_plate_end": "2026-11-24T20:05",
+            "start": "2026-11-25T08:00",
+            "end": "2026-11-25T08:05",
+            "final_plate_end_min": 2165,
+            "start_min": 2880,
+            "end_min": 2885,
+        }
+    ]
     assert data["metrics"]["jobs"][0]["late_min"] == 665
     assert data["unscheduled"] == []
 
@@ -74,12 +91,14 @@ def test_html_report_structure() -> None:
     assert html.count("<svg") == 1
     # two print bars coloured as PLA, each with a tooltip
     assert html.count('fill="#3b6fd4"') == 2
-    # the overnight wait is drawn once between the two plates
-    assert html.count('fill="url(#wait)"') == 1
-    assert "waits 11h 55m for an operator" in html
+    # the overnight waits: between the two plates, and the final plate until cleared
+    assert html.count('fill="url(#wait)"') == 2
+    assert "long #1 waits 11h 55m for an operator" in html
+    assert "long #2 waits 11h 55m to be cleared" in html
+    assert "<title>clear final plate, Wed 25 Nov 08:00</title>" in html
     assert "late by 11h 05m" in html
-    # labour windows Mon and Tue are shaded
-    assert len(re.findall(r'<rect class="window"', html)) == 2
+    # labour windows Mon, Tue and Wed (the clearing) are shaded
+    assert len(re.findall(r'<rect class="window"', html)) == 3
     assert "@media (prefers-color-scheme: dark)" in html
     assert "<script" not in html
 
