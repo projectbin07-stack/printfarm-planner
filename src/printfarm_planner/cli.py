@@ -1,4 +1,4 @@
-"""Command-line interface: ``printfarm-planner plan|check|models``."""
+"""Command-line interface: ``printfarm-planner plan|compare|check|models``."""
 
 from __future__ import annotations
 
@@ -10,15 +10,19 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from . import __version__
+from .compare import compare, compare_json, format_compare, render_compare_html
 from .compat import incompatibilities
+from .exact import EXACT_PLATE_LIMIT
 from .fleet import Fleet, FleetError, load_fleet
 from .gantt import render_html
 from .jobs import JobError, load_insight_file, load_jobs_csv
 from .labour import LabourError
 from .metrics import compute_metrics
 from .model import BUILTIN_MODELS, Job, normalise_spool
+from .objective import TERMS, Weights, evaluate
 from .report import format_text, to_csv, to_json_dict
 from .scheduler import STRATEGIES, plan
+from .search import SearchConfig, improve
 
 __all__ = ["build_parser", "main"]
 
@@ -38,6 +42,53 @@ def _positive_int(text: str) -> int:
     if value < 1:
         raise argparse.ArgumentTypeError("must be at least 1")
     return value
+
+
+def _non_negative_int(text: str) -> int:
+    value = int(text)
+    if value < 0:
+        raise argparse.ArgumentTypeError("must be at least 0")
+    return value
+
+
+def _positive_float(text: str) -> float:
+    value = float(text)
+    if not value > 0:
+        raise argparse.ArgumentTypeError("must be greater than 0")
+    return value
+
+
+def _add_objective_options(parser: argparse.ArgumentParser) -> None:
+    defaults = Weights()
+    parser.add_argument(
+        "--weight",
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        help="objective weight, repeatable; NAME is one of "
+        f"{', '.join(TERMS)} (defaults: "
+        + ", ".join(f"{name}={getattr(defaults, name):g}" for name in TERMS)
+        + ")",
+    )
+
+
+def _add_search_options(parser: argparse.ArgumentParser) -> None:
+    defaults = SearchConfig()
+    parser.add_argument(
+        "--iterations",
+        type=_non_negative_int,
+        default=defaults.iterations,
+        help=f"local-search iteration budget (default {defaults.iterations})",
+    )
+    parser.add_argument(
+        "--time-limit",
+        type=_positive_float,
+        metavar="SECONDS",
+        help="local-search wall-clock limit; results then depend on machine speed",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=defaults.seed, help="local-search random seed (default 0)"
+    )
 
 
 def _add_inputs(parser: argparse.ArgumentParser) -> None:
@@ -88,10 +139,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="fill: minimise finished plates waiting for an operator; "
         "edd: earliest due date first (default fill)",
     )
+    plan_cmd.add_argument(
+        "--improve",
+        choices=("hill", "anneal"),
+        help="run a local-search improvement phase on the greedy schedule: hill climbing "
+        "or simulated annealing",
+    )
+    _add_search_options(plan_cmd)
+    _add_objective_options(plan_cmd)
     plan_cmd.add_argument("--html", type=Path, help="write a Gantt HTML report here")
     plan_cmd.add_argument("--csv", type=Path, help="write the schedule as CSV here")
     plan_cmd.add_argument("--json", action="store_true", help="print JSON instead of text")
     plan_cmd.add_argument("--title", default="Print farm plan", help="HTML report title")
+
+    compare_cmd = sub.add_parser(
+        "compare", help="run fill, edd, local search and the exact solver on the same input"
+    )
+    _add_inputs(compare_cmd)
+    _add_search_options(compare_cmd)
+    _add_objective_options(compare_cmd)
+    compare_cmd.add_argument(
+        "--exact-limit",
+        type=_non_negative_int,
+        default=EXACT_PLATE_LIMIT,
+        metavar="PLATES",
+        help="run the exact solver only up to this many plates "
+        f"(default {EXACT_PLATE_LIMIT}; run time grows steeply)",
+    )
+    compare_cmd.add_argument("--html", type=Path, help="write an HTML comparison report here")
+    compare_cmd.add_argument("--json", action="store_true", help="print JSON instead of text")
+    compare_cmd.add_argument("--title", default="Planner comparison", help="HTML report title")
 
     check_cmd = sub.add_parser("check", help="show which printers can run which jobs")
     _add_inputs(check_cmd)
@@ -156,17 +233,53 @@ def _run(args: argparse.Namespace) -> int:
     if args.command == "check":
         return _check(fleet, jobs)
 
+    weights = Weights.parse(args.weight)
+    if args.command == "compare":
+        return _compare(args, fleet, jobs, start, weights)
+
     schedule = plan(fleet, jobs, start, strategy=args.strategy)
+    if args.improve is not None:
+        result = improve(fleet, jobs, start, schedule, weights, _search_config(args))
+        schedule = result.schedule
     metrics = compute_metrics(schedule)
+    objective = evaluate(schedule, weights, metrics)
     if args.html is not None:
-        args.html.write_text(render_html(schedule, metrics, args.title), encoding="utf-8")
+        html = render_html(schedule, metrics, args.title, objective)
+        args.html.write_text(html, encoding="utf-8")
     if args.csv is not None:
         args.csv.write_text(to_csv(schedule), encoding="utf-8", newline="")
     if args.json:
-        print(json.dumps(to_json_dict(schedule, metrics), indent=2))
+        print(json.dumps(to_json_dict(schedule, metrics, objective), indent=2))
     else:
-        sys.stdout.write(format_text(schedule, metrics))
+        sys.stdout.write(format_text(schedule, metrics, objective))
     return 1 if schedule.unscheduled else 0
+
+
+def _search_config(args: argparse.Namespace) -> SearchConfig:
+    return SearchConfig(
+        iterations=args.iterations,
+        time_limit_s=args.time_limit,
+        seed=args.seed,
+        anneal=getattr(args, "improve", None) == "anneal",
+    )
+
+
+def _compare(
+    args: argparse.Namespace, fleet: Fleet, jobs: list[Job], start: datetime, weights: Weights
+) -> int:
+    runs = compare(fleet, jobs, start, weights, _search_config(args), exact_limit=args.exact_limit)
+    if args.html is not None:
+        html = render_compare_html(runs, weights, args.title)
+        args.html.write_text(html, encoding="utf-8")
+    if args.json:
+        print(json.dumps(compare_json(runs, weights, start), indent=2))
+    else:
+        sys.stdout.write(format_compare(runs, weights))
+    unscheduled = next((r.schedule.unscheduled for r in runs if r.schedule is not None), [])
+    if unscheduled:
+        names = ", ".join(u.job.name for u in unscheduled)
+        print(f"Unscheduled (no printer can run these): {names}", file=sys.stderr)
+    return 1 if unscheduled else 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
