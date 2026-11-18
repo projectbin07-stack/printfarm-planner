@@ -81,7 +81,8 @@ def _chart(schedule: Schedule, metrics: Metrics) -> str:
     cal = schedule.calendar
     end = max(metrics.makespan_min, 60.0)
     hours = end / 60.0
-    px_per_hour = max(6.0, min(40.0, 1400.0 / hours))
+    # Fit the report's ~1000 px content width; very long plans scroll horizontally.
+    px_per_hour = max(6.0, min(40.0, 1000.0 / hours))
     width = _LABEL_W + hours * px_per_hour + 20
     height = _AXIS_H + _ROW_H * len(schedule.printers) + 8
 
@@ -107,6 +108,8 @@ def _chart(schedule: Schedule, metrics: Metrics) -> str:
     start = cal.start
     midnight = start.replace(hour=0, minute=0, second=0, microsecond=0)
     step = 6 if px_per_hour >= 8 else 12
+    if start != midnight:
+        parts.append(f'<text x="{x(0) + 4:.1f}" y="16">{start.strftime("%a %d %b")}</text>')
     tick = midnight
     while tick <= start + timedelta(minutes=end):
         minutes = (tick - start).total_seconds() / 60.0
