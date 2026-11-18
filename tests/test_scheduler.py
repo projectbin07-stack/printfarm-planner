@@ -12,7 +12,8 @@ import pytest
 
 from helpers import MONDAY_8, fleet, job, printer
 from printfarm_planner.metrics import compute_metrics
-from printfarm_planner.scheduler import Assignment, plan
+from printfarm_planner.model import Job, Plate
+from printfarm_planner.scheduler import Assignment, Dispatcher, plan, sequences_of, simulate
 
 
 def times(assignments: list[Assignment]) -> list[tuple[str, float, float, float]]:
@@ -232,3 +233,68 @@ def test_every_plate_scheduled_once_and_no_overlaps() -> None:
     for a in schedule.assignments:
         lo, hi = cal.next_window(a.setup_start)
         assert lo <= a.setup_start and a.start <= hi
+
+
+def _example_like_jobs() -> list[Job]:
+    return [
+        job("a", 95, copies=5, due=600),
+        job("b", 400, copies=3, spools=("PETG",)),
+        job("c", 30, copies=7, spools=("PLA:red",), priority=1),
+        job("d", 1000, copies=1, due=900),
+        job("asa", 200, copies=2, spools=("ASA",)),
+    ]
+
+
+@pytest.mark.parametrize("strategy", ["fill", "edd"])
+@pytest.mark.parametrize("operators", [1, 2])
+def test_simulate_reproduces_the_greedy_schedule(strategy: str, operators: int) -> None:
+    f = fleet(
+        printer("P1", ams=4, loaded=("PLA",)),
+        printer("P2", model="A1", ams=4),
+        printer("P3", model="A1 Mini"),
+        operators=operators,
+    )
+    jobs = _example_like_jobs()
+    greedy = plan(f, jobs, MONDAY_8, strategy=strategy)
+    again = simulate(f, jobs, MONDAY_8, sequences_of(greedy), calendar=greedy.calendar)
+    assert again.assignments == greedy.assignments
+    assert again.strategy == "sequence"
+
+
+def test_simulate_follows_a_given_order() -> None:
+    jobs = [job("A", 600), job("B", 120, copies=3)]
+    greedy = plan(fleet(printer()), jobs, MONDAY_8)
+    plates = sequences_of(greedy)["P1"]
+    reordered = {"P1": [plates[-1], *plates[:-1]]}  # A first, as edd would
+    schedule = simulate(fleet(printer()), jobs, MONDAY_8, reordered)
+    assert times(schedule.assignments) == [
+        ("A", 0, 5, 605),
+        ("B #1", 1440, 1445, 1565),
+        ("B #2", 1565, 1570, 1690),
+        ("B #3", 1690, 1695, 1815),
+    ]
+
+
+def test_simulate_rejects_bad_sequences() -> None:
+    f = fleet(printer("A1", model="A1"), printer("P1S"))
+    jobs = [job("pla", 60), job("asa", 60, spools=("ASA",))]
+    pla, asa = Plate(jobs[0], 1), Plate(jobs[1], 1)
+    with pytest.raises(ValueError, match="exactly once"):
+        simulate(f, jobs, MONDAY_8, {"A1": [pla]})
+    with pytest.raises(ValueError, match="exactly once"):
+        simulate(f, jobs, MONDAY_8, {"A1": [pla, pla], "P1S": [asa]})
+    with pytest.raises(ValueError, match="unknown printer"):
+        simulate(f, jobs, MONDAY_8, {"X": [pla], "P1S": [asa]})
+    with pytest.raises(ValueError, match="cannot run on A1"):
+        simulate(f, jobs, MONDAY_8, {"A1": [asa], "P1S": [pla]})
+
+
+def test_dispatcher_copy_is_independent() -> None:
+    f = fleet(printer("P1"), printer("P2"))
+    jobs = [job("j", 60, copies=2)]
+    state = Dispatcher(f, jobs, MONDAY_8, "test")
+    branch = state.copy()
+    branch.place(0, state.plates[0])
+    assert state.schedule.assignments == [] and state.ready == [0.0, 0.0]
+    assert state.pool.bookings == [[]]
+    assert branch.ready[0] == 65 and branch.slot(1) == 5

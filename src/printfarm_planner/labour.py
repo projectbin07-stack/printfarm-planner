@@ -207,3 +207,9 @@ class OperatorPool:
     def book(self, operator: int, start: float, duration: float) -> None:
         if duration > 0:
             bisect.insort(self.bookings[operator], (start, start + duration))
+
+    def copy(self) -> OperatorPool:
+        """Independent bookings on the same calendar."""
+        other = OperatorPool(self.calendar, len(self.bookings))
+        other.bookings = [list(booked) for booked in self.bookings]
+        return other
