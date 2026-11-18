@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from datetime import datetime
 from pathlib import Path
 
@@ -79,3 +80,31 @@ def job(
         models=models,
         mass_g=mass,
     )
+
+
+def random_instance(seed: int, plates: int) -> tuple[Fleet, list[Job]]:
+    """A small generated instance: 2-3 printers and ``plates`` plates over 1-3 copy jobs.
+
+    Mixed materials (one ASA job only fits the P1S), due dates, priorities and a
+    slower A1 Mini make the greedy rules and the objective disagree now and then.
+    """
+    rng = random.Random(seed)
+    printers = [printer("P1", ams=4, loaded=("PLA:black",)), printer("A1", model="A1")]
+    if rng.random() < 0.5:
+        printers.append(printer("M", model="A1 Mini", time_factor=1.1))
+    jobs: list[Job] = []
+    left = plates
+    while left:
+        copies = min(left, rng.randint(1, 3))
+        left -= copies
+        jobs.append(
+            job(
+                f"j{len(jobs) + 1}",
+                rng.choice([45, 90, 180, 300, 540, 780]),
+                spools=rng.choice([("PLA:black",), ("PLA:white",), ("PETG",), ("ASA",)]),
+                copies=copies,
+                due=rng.choice([None, 600, 1500]),
+                priority=rng.choice([0, 0, 1]),
+            )
+        )
+    return fleet(*printers, operators=rng.choice([1, 1, 2])), jobs
