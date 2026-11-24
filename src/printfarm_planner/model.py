@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 __all__ = [
     "BUILTIN_MODELS",
@@ -10,8 +11,10 @@ __all__ = [
     "Plate",
     "Printer",
     "PrinterModel",
+    "colour_key",
     "material_type",
     "normalise_spool",
+    "spool_matches",
 ]
 
 
@@ -33,6 +36,69 @@ def normalise_spool(text: str) -> str:
 def material_type(spool: str) -> str:
     """``"PLA:black"`` -> ``"PLA"``."""
     return spool.partition(":")[0]
+
+
+#: Reference colours for matching slicer hex codes against named spools. A ``#RRGGBB`` label
+#: is treated as the nearest of these (straight-line distance in RGB), so ``#161616`` from a
+#: slicer matches a spool labelled ``black``. Labels that are neither hex nor in this table
+#: (``galaxy``, ``matte-sakura``) are compared as written, ignoring case.
+NAMED_COLOURS: dict[str, tuple[int, int, int]] = {
+    "black": (0, 0, 0),
+    "white": (255, 255, 255),
+    "grey": (128, 128, 128),
+    "silver": (192, 192, 192),
+    "red": (255, 0, 0),
+    "maroon": (128, 0, 0),
+    "orange": (255, 140, 0),
+    "yellow": (255, 230, 0),
+    "gold": (212, 175, 55),
+    "green": (0, 160, 0),
+    "olive": (128, 128, 0),
+    "cyan": (0, 200, 220),
+    "blue": (0, 70, 255),
+    "navy": (0, 0, 128),
+    "purple": (128, 0, 160),
+    "magenta": (255, 0, 255),
+    "pink": (255, 150, 190),
+    "brown": (120, 70, 20),
+    "beige": (225, 210, 170),
+}
+_COLOUR_ALIASES = {"gray": "grey", "violet": "purple"}
+
+
+@lru_cache(maxsize=1024)
+def colour_key(label: str) -> str:
+    """What a spool label is compared by: a reference colour name, or the label itself.
+
+    ``"#161616"`` -> ``"black"``, ``"Gray"`` -> ``"grey"``, ``"Galaxy"`` -> ``"galaxy"``.
+    Bambu Studio writes ``#RRGGBBAA``; the alpha byte is ignored.
+    """
+    text = label.strip().lower()
+    hexpart = text[1:] if text.startswith("#") else ""
+    if len(hexpart) in (6, 8) and all(c in "0123456789abcdef" for c in hexpart):
+        rgb = tuple(int(hexpart[i : i + 2], 16) for i in (0, 2, 4))
+        return min(
+            NAMED_COLOURS,
+            key=lambda n: sum((a - b) ** 2 for a, b in zip(rgb, NAMED_COLOURS[n], strict=True)),
+        )
+    return _COLOUR_ALIASES.get(text, text)
+
+
+@lru_cache(maxsize=4096)
+def spool_matches(loaded: str, needed: str) -> bool:
+    """True when a loaded spool can serve a needed one without a manual swap.
+
+    The material types must be equal. When either side has no colour label (``"PLA"``) the
+    colour is unknown and any spool of that type is accepted; otherwise the labels must name
+    the same colour by :func:`colour_key`.
+    """
+    have_type, _, have_label = loaded.partition(":")
+    need_type, _, need_label = needed.partition(":")
+    if have_type != need_type:
+        return False
+    if not have_label or not need_label:
+        return True
+    return colour_key(have_label) == colour_key(need_label)
 
 
 @dataclass(frozen=True, slots=True)

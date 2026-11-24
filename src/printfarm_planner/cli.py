@@ -198,6 +198,10 @@ def _load_jobs(args: argparse.Namespace, start: datetime) -> list[Job]:
         raise JobError(f"duplicate job name(s) across inputs: {', '.join(duplicates)}")
     if not jobs:
         raise JobError("no jobs found in the inputs")
+    for j in jobs:
+        for note in j.notes:
+            if note.startswith("warning: "):
+                print(f"printfarm-planner: warning: {j.name}: {note[9:]}", file=sys.stderr)
     return jobs
 
 

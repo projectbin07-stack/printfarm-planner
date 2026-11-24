@@ -1,6 +1,7 @@
 {
+  "schema_version": 2,
   "source": "prusa_cube.gcode",
-  "line_count": 323,
+  "line_count": 325,
   "metadata": {
     "slicer": "PrusaSlicer",
     "slicer_version": "2.7.4+win64",
@@ -27,7 +28,11 @@
     "filament_diameter": [
       1.75
     ],
-    "total_layers": null
+    "total_layers": null,
+    "filament_colour": [
+      "#FF8000"
+    ],
+    "printer_model": "MK4S"
   },
   "layer_mode": "markers",
   "layers": [
@@ -106,7 +111,8 @@
       "mass_g": 0.21451894522080137,
       "material": "PETG",
       "density": 1.27,
-      "diameter": 1.75
+      "diameter": 1.75,
+      "colour": "#FF8000"
     }
   ],
   "extrude_path_mm": 1876.8,

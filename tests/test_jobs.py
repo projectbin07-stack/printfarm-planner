@@ -1,5 +1,6 @@
-"""Job loading. The JSON fixtures are real `gcode-insight analyze --json` output for the
-synthetic G-code fixtures of gcode-insight 0.1.0 (see tests/fixtures/README.md)."""
+"""Job loading. The JSON fixtures are real `gcode-insight analyze --json` output (0.2.0, and 0.1.0
+in tests/fixtures/gcode-insight-0.1.0) for gcode-insight's synthetic G-code fixtures (see
+tests/fixtures/README.md)."""
 
 from __future__ import annotations
 
@@ -38,13 +39,23 @@ def test_bambu_analysis() -> None:
     assert job.name == "bambu_cube"
     # metadata.estimated_time_s = 393 s -> 6.55 min
     assert job.print_time_min == pytest.approx(393 / 60)
-    assert job.spools == ("PLA", "PETG")
+    # filament_colour = #FFFFFF;#161616, printer_model = Bambu Lab P1S
+    assert job.spools == ("PLA:#FFFFFF", "PETG:#161616")
+    assert job.models == frozenset({"P1S"})
     assert job.copies == 3
     assert job.nozzle_mm == 0.4
     # bounding box X 18..137.79, Y 1..137.79, max Z 1.0
     assert job.size_mm == (119.79, 136.79, 1.0)
     assert job.mass_g == pytest.approx(0.2184345)
-    assert job.notes == ("time: slicer total estimate",)
+    assert job.notes == ("time: slicer total estimate", "sliced for Bambu Lab P1S")
+
+
+def test_gcode_insight_0_1_0_output_still_loads() -> None:
+    job = load_insight_file(FIXTURES / "gcode-insight-0.1.0" / "bambu_cube.json")
+    # 0.1.0 had no colour and no printer model: bare types, any compatible printer
+    assert job.spools == ("PLA", "PETG")
+    assert job.models == frozenset()
+    assert job.print_time_min == pytest.approx(393 / 60)
 
 
 def test_unknown_material_needs_a_default() -> None:
@@ -61,7 +72,7 @@ def test_unknown_material_needs_a_default() -> None:
 def test_material_falls_back_to_metadata_filament_type() -> None:
     data = json.loads((FIXTURES / "prusa_cube.json").read_text(encoding="utf-8"))
     data["tools"][0]["material"] = None
-    assert job_from_insight(data, "x").spools == ("PETG",)
+    assert job_from_insight(data, "x").spools == ("PETG:#FF8000",)
 
 
 def test_not_an_analysis() -> None:
@@ -105,11 +116,12 @@ def test_example_csv() -> None:
     assert badge.spools == ("PLA:white", "PLA:orange")
     assert badge.print_time_min == 145
     cube = by_name["calibration-cube"]
-    # time, size and nozzle from the JSON (64 s slicer total); material from the CSV
-    assert cube.print_time_min == pytest.approx(64 / 60)
-    assert cube.spools == ("PETG",)
+    # time, spools, printer model and nozzle all from the JSON (393 s slicer total)
+    assert cube.print_time_min == pytest.approx(393 / 60)
+    assert cube.spools == ("PLA:#FFFFFF", "PETG:#161616")
+    assert cube.models == frozenset({"P1S"})
     assert cube.nozzle_mm == 0.4
-    assert cube.source == "../tests/fixtures/prusa_cube.json"
+    assert cube.source == "../tests/fixtures/bambu_cube.json"
 
 
 def write(tmp_path: Path, text: str) -> Path:
@@ -136,9 +148,14 @@ def test_csv_json_overrides(tmp_path: Path) -> None:
     )
     job = load_jobs_csv(path, MONDAY_8)[0]
     assert job.print_time_min == 120
-    assert job.spools == ("PLA", "PETG")
+    assert job.spools == ("PLA:#FFFFFF", "PETG:#161616")
     assert (job.nozzle_mm, job.size_mm, job.mass_g) == (0.6, (10, 20, 30), 55)
-    assert job.notes == ()
+    # The CSV wins, but each value far from the analysis is reported.
+    assert job.notes == (
+        "warning: CSV print_time 120 min overrides 7 min from a.json",
+        "warning: CSV mass_g 55 overrides 0.218 g from a.json",
+        "warning: CSV nozzle_mm 0.6 overrides 0.4 from a.json",
+    )
 
 
 @pytest.mark.parametrize(

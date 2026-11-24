@@ -1,4 +1,5 @@
 {
+  "schema_version": 2,
   "source": "marlin_generic.gcode",
   "line_count": 79,
   "metadata": {
@@ -15,7 +16,9 @@
     "filament_type": [],
     "filament_density": [],
     "filament_diameter": [],
-    "total_layers": null
+    "total_layers": null,
+    "filament_colour": [],
+    "printer_model": null
   },
   "layer_mode": "z",
   "layers": [
@@ -76,7 +79,8 @@
       "mass_g": 0.1438400124762809,
       "material": null,
       "density": 1.24,
-      "diameter": 1.75
+      "diameter": 1.75,
+      "colour": null
     }
   ],
   "extrude_path_mm": 928.0,

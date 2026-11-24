@@ -40,7 +40,7 @@ from datetime import datetime
 from .compat import incompatibilities
 from .fleet import Fleet, Labour
 from .labour import Calendar, OperatorPool
-from .model import Job, Plate, Printer
+from .model import Job, Plate, Printer, spool_matches
 
 __all__ = [
     "STRATEGIES",
@@ -120,13 +120,28 @@ class Schedule:
 def _needs_change(loaded: tuple[str, ...], spools: tuple[str, ...]) -> bool:
     if not loaded:  # nothing declared: assume the printer is prepared for its first plate
         return False
-    return not set(spools) <= set(loaded)
+    return not all(any(spool_matches(have, need) for have in loaded) for need in spools)
 
 
 def _after_load(loaded: tuple[str, ...], spools: tuple[str, ...], capacity: int) -> tuple[str, ...]:
-    """Spools on the printer after loading ``spools``; most recently used first."""
-    merged = list(dict.fromkeys(spools))
-    merged += [s for s in loaded if s not in merged]
+    """Spools on the printer after loading ``spools``; most recently used first.
+
+    A needed spool already served by a loaded one keeps the loaded label, unless the loaded
+    label has no colour and the needed one does (the colour is then known).
+    """
+    slots = list(loaded)
+    used: list[str] = []
+    for need in dict.fromkeys(spools):
+        idx = next(
+            (i for i, h in enumerate(slots) if h not in used and spool_matches(h, need)), None
+        )
+        if idx is None:
+            used.append(need)
+            continue
+        if ":" in need and ":" not in slots[idx]:
+            slots[idx] = need  # the same physical spool; its colour is now known
+        used.append(slots[idx])
+    merged = list(dict.fromkeys(used)) + [s for s in slots if s not in used]
     return tuple(merged[:capacity])
 
 

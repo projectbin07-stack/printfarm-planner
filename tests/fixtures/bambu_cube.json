@@ -1,4 +1,5 @@
 {
+  "schema_version": 2,
   "source": "bambu_cube.gcode",
   "line_count": 350,
   "metadata": {
@@ -33,7 +34,12 @@
       1.75,
       1.75
     ],
-    "total_layers": 5
+    "total_layers": 5,
+    "filament_colour": [
+      "#FFFFFF",
+      "#161616"
+    ],
+    "printer_model": "Bambu Lab P1S"
   },
   "layer_mode": "markers",
   "layers": [
@@ -103,7 +109,8 @@
       "mass_g": 0.1406562303342936,
       "material": "PLA",
       "density": 1.24,
-      "diameter": 1.75
+      "diameter": 1.75,
+      "colour": "#FFFFFF"
     },
     {
       "tool": 1,
@@ -112,7 +119,8 @@
       "mass_g": 0.07777830259591786,
       "material": "PETG",
       "density": 1.27,
-      "diameter": 1.75
+      "diameter": 1.75,
+      "colour": "#161616"
     }
   ],
   "extrude_path_mm": 1596.3557428756435,

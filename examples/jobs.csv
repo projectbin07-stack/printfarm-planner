@@ -6,4 +6,4 @@ enclosure-base,2,13h15m,PETG:black,0.4,220x160x70,390,48,1,P1S+A1,
 asa-bracket,4,3h10m,ASA:grey,0.6,90x60x40,64,,0,,
 logo-badge,3,2:25,PLA:white+PLA:orange,0.4,80x80x6,22,30,0,,
 mini-hinges,8,55,PLA:black,0.4,60x40x15,9,,0,,
-calibration-cube,1,,PETG,,,,,0,,../tests/fixtures/prusa_cube.json
+calibration-cube,1,,,,,,,0,,../tests/fixtures/bambu_cube.json

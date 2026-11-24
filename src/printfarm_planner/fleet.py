@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,6 +9,7 @@ from typing import Any
 
 from .labour import LabourError, Weekly, parse_weekly
 from .model import BUILTIN_MODELS, Printer, PrinterModel, normalise_spool
+from .textio import read_json
 
 __all__ = ["Fleet", "FleetError", "Labour", "load_fleet", "parse_fleet"]
 
@@ -187,8 +187,8 @@ def parse_fleet(data: Any) -> Fleet:
 
 def load_fleet(path: Path) -> Fleet:
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        data = read_json(path)
+    except (OSError, ValueError) as exc:
         raise FleetError(f"{path}: {exc}") from None
     try:
         return parse_fleet(data)
