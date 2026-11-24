@@ -108,7 +108,9 @@ def _parse_due(text: str, start: datetime) -> float:
     except ValueError:
         pass
     try:
-        moment = datetime.fromisoformat(text.strip())
+        raw = text.strip()
+        # Python 3.10's fromisoformat does not accept the "Z" (UTC) suffix.
+        moment = datetime.fromisoformat(raw[:-1] + "+00:00" if raw[-1:] in "Zz" and raw else raw)
     except ValueError:
         raise JobError(f"bad due {text!r}; use hours from start or YYYY-MM-DDTHH:MM") from None
     if moment.tzinfo is not None and start.tzinfo is None:
