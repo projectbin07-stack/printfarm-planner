@@ -80,34 +80,39 @@ Output (first part; the full text also lists every plate and job):
 ```text
 Production plan (strategy: fill)
 
-  Start Mon 23 Nov 08:00   Finish Tue 24 Nov 12:35   Makespan 28h 35m
-  26 plates, 83h 53m printing, fleet utilisation 58.7%
-  Operator: 31 tasks, 3h 15m, 4 material changes
-  Finished plates waiting: 51h 05m outside labour windows, 1h 42m inside
-  Of that, final plates waiting to be cleared: 13m
+  Start Mon 23 Nov 08:00   Finish Tue 24 Nov 12:46   Makespan 28h 47m
+  26 plates, 83h 58m printing, fleet utilisation 58.4%
+  Operator: 31 tasks, 3h 05m, 3 material changes
+  Finished plates waiting: 51h 05m outside labour windows, 1h 29m inside
+  Of that, final plates waiting to be cleared: 0m
   Filament: 1822.2 g
 
 Objective (lower is better; minutes, weighted)
   term                          value  weight  contribution
   weighted tardiness            0 min       1           0.0
-  makespan                   1715 min       1        1715.0
+  makespan                   1727 min       1        1726.5
   wait outside labour hours  3065 min     0.2         613.0
-  wait inside labour hours    102 min     0.5          51.2
-  material changes                  4      10          40.0
-  total                                              2419.2
+  wait inside labour hours     89 min     0.5          44.5
+  material changes                  3      10          30.0
+  total                                              2414.1
 
 Printers (wait off / wait in include the final plate's wait)
   printer  model    plates  printing  setup  wait off  wait in  final wait  cleared            util
-  P1S-1    P1S           5   27h 00m    25m    1h 05m       0m          0m  Tue 24 Nov 12:35  94.5%
-  P1S-2    P1S           4   12h 40m    20m   14h 00m      15m          0m  Tue 24 Nov 11:25  44.3%
-  A1-1     A1            5   15h 16m    55m   11h 35m      14m          4m  Tue 24 Nov 12:15  53.4%
-  A1-2     A1            4   16h 45m    30m   10h 25m      20m          5m  Tue 24 Nov 12:20  58.6%
-  A1-Mini  A1 Mini       8   12h 12m    40m   14h 00m      54m          4m  Tue 24 Nov 12:10  42.7%
+  P1S-1    P1S           6   27h 07m    30m    1h 05m       0m          0m  Tue 24 Nov 12:46  94.2%
+  P1S-2    P1S           4   12h 40m    20m   14h 00m      15m          0m  Tue 24 Nov 11:25  44.0%
+  A1-1     A1            4   15h 15m    40m   11h 35m      10m          0m  Tue 24 Nov 11:55  53.0%
+  A1-2     A1            4   16h 45m    30m   10h 25m      15m          0m  Tue 24 Nov 12:15  58.2%
+  A1-Mini  A1 Mini       8   12h 12m    40m   14h 00m      49m          0m  Tue 24 Nov 12:05  42.4%
 ```
 
 The 31 operator tasks are 26 plate starts and 5 clearings of final plates. The same input with
-`--strategy edd` gave a 29h 20m makespan, 5 material changes and 50h 35m of off-hours waiting,
-11h 05m of it final plates left overnight, for an objective of 2464.5 against 2419.2 for `fill`.
+`--strategy edd` gave a 29h 20m makespan, 4 material changes and 50h 35m of off-hours waiting,
+11h 01m of it final plates left overnight, for an objective of 2452.3 against 2414.1 for `fill`.
+
+These figures changed in v0.4.0 for two reasons. `calibration-cube` now comes from a gcode-insight
+0.2.0 analysis that says it was sliced for a P1S, so it can only go to P1S-1. And a job whose spool
+has no colour label (or whose slicer colour `#161616` is the loaded `PETG:black`) no longer counts
+a material change against a labelled spool of the same type.
 Neither strategy is better in general: both are greedy heuristics, so try both on your own
 order.
 
@@ -123,28 +128,29 @@ Planner comparison (26 plates)
   times in minutes; gap is relative to the lowest objective in this table
 
   method  objective    gap  tardiness  makespan  wait off  wait in  changes    time  note
-  fill       2419.2  38.6%          0   28h 35m   51h 05m   1h 42m        4    2 ms
-  edd        2464.5  41.2%          0   29h 20m   50h 35m   1h 35m        5    2 ms
-  hill       1867.5   7.0%          0   26h 35m   17h 45m      39m        4  1.39 s  from fill, 2000 iterations
-  anneal     1745.2   0.0%          0   24h 20m   17h 50m      42m        5  1.43 s  from fill, 2000 iterations
+  fill       2414.1  39.2%          0   28h 47m   51h 05m   1h 29m        3    5 ms
+  edd        2452.3  41.4%          0   29h 20m   50h 35m   1h 31m        4    4 ms
+  hill       1733.7   0.0%          0   24h 20m   17h 48m      40m        4  2.37 s  from fill, 2000 iterations
+  anneal     1739.5   0.3%          0   24h 20m   17h 35m      57m        4  2.83 s  from fill, 2000 iterations
   exact           -      -          -         -         -        -        -    0 ms  skipped: 26 plates is above the exact-solver limit of 8
 ```
 
 What this shows, and what it does not:
 
-- The local search lowers the objective by 23% (hill climbing) and 28% (annealing) against the
-  better greedy plan, mostly by cutting overnight waiting from about 51 hours to about 18 hours.
-  The improved plans still let long plates print overnight, but time them to finish closer to
-  Tuesday 08:00, when they are cleared. Most of their remaining wait is final plates: 13h 25m
-  for hill climbing and 18h 24m for annealing, 10h 55m of it on P1S-2, the only printer that
-  can run the ASA job.
+- The local search lowers the objective by 28% (hill climbing, 1733.7) and 28% (annealing,
+  1739.5) against the better greedy plan, mostly by cutting overnight waiting from about 51 hours
+  to about 18 hours. The improved plans still let long plates print overnight, but time them to
+  finish closer to Tuesday 08:00, when they are cleared. Most of their remaining wait is final
+  plates: 18h 18m for hill climbing and 18h 08m for annealing, 10h 55m of it on P1S-2, the only
+  printer that can run the ASA job.
 - **v0.2.0 overstated this improvement.** Its objective did not count the final plate's wait
   and did not schedule clearing it, so it showed hill climbing at 1332.5 with 0m of off-hours
   waiting, 42.4% below the better greedy plan (then `edd`). Re-timed and scored with clearing,
   that same v0.2.0 plan has 32h 52m of off-hours waiting and an objective of 1907.0. The
-  improvement is still there, but at 23-28% it is smaller than v0.2.0 reported.
-- The result depends on the seed. With seeds 0 to 4, hill climbing ended between 1749.2 and
-  1871.4, and annealing between 1745.2 and 1956.2. Annealing was not consistently better.
+  improvement is still there, but it is smaller than v0.2.0 reported (23-28% on the v0.3.0
+  example).
+- The result depends on the seed. With seeds 0 to 4, hill climbing ended between 1719.2 and
+  1860.2, and annealing between 1733.7 and 1866.7. Annealing was not consistently better.
 - With 26 plates the exact solver is skipped, so there is no proof of how far these plans are
   from the optimum. Run times are from the development machine.
 
@@ -199,7 +205,7 @@ enclosure-base    P1S-1, A1-1, A1-2
 asa-bracket       P1S-2
 logo-badge        P1S-1, A1-1, A1-2
 mini-hinges       P1S-1, A1-1, A1-2, A1-Mini
-calibration-cube  P1S-1, A1-1, A1-2, A1-Mini
+calibration-cube  P1S-1
 ```
 
 When a job has no capable printer, `check` prints each printer's reasons, and `plan` lists the
@@ -208,19 +214,35 @@ job under "Unscheduled" and exits with status 1.
 ### Using gcode-insight output
 
 ```console
-gcode-insight analyze bracket.gcode --json > bracket.json
+gcode-insight analyze bracket.gcode --json --out bracket.json
 printfarm-planner plan --fleet fleet.json bracket.json --copies 6 --start 2026-11-23T08:00
 ```
+
+`--out` needs gcode-insight 0.2.0 or later. Shell redirection (`--json > bracket.json`) also works,
+including in Windows PowerShell 5.1, which writes UTF-16 or UTF-8 with a byte-order mark: the
+planner reads JSON, CSV and fleet files in UTF-8 with or without a BOM, and UTF-16 with a BOM.
 
 For each analysis, the job uses:
 
 | Field | Taken from |
 |---|---|
 | print time | the slicer's total estimate in the file. If there is none, gcode-insight's model estimate plus `--prep-min` (the model excludes heating, homing and levelling). |
-| materials | each tool that extruded, from gcode-insight's material, falling back to the slicer's filament type, then `--material` |
+| spools | each tool that extruded: gcode-insight's material, falling back to the slicer's filament type, then `--material`; plus the slicer's filament colour when the file has one (gcode-insight 0.2.0+), for example `PLA:#161616` |
+| models | the printer model the file was sliced for (gcode-insight 0.2.0+), with a `Bambu Lab ` prefix dropped: `Bambu Lab P1S` -> `P1S`. The job then runs only on printers of that model. A file sliced for a model your fleet does not have (`Voron 2.4 350`) has no printer; set the CSV `models` column to override. |
 | nozzle | slicer metadata, if present |
 | size | extent of all moves (X/Y span, max Z). This includes purge lines, so it can overstate the part. |
 | mass | gcode-insight's mass estimate |
+
+Output of gcode-insight 0.1.0 (no `schema_version`) still loads: its spools have no colour and the
+job may run on any compatible model.
+
+How spools are matched against what a printer has loaded: the material type must be equal. If
+either side has no colour label (`PLA`), any spool of that type serves. Otherwise the labels must
+name the same colour, where a `#RRGGBB` code counts as the nearest of a small table of reference
+colours (black, white, grey, silver, red, maroon, orange, yellow, gold, green, olive, cyan, blue,
+navy, purple, magenta, pink, brown, beige). So the slicer's `#161616` matches a spool labelled
+`black`, and `#FFFFFF` matches `white`. Other labels (`galaxy`) must match as written, ignoring
+case. The hex mapping is a heuristic: two different dark reds can both map to `maroon`.
 
 ## Input formats
 
@@ -276,10 +298,10 @@ bracket,6,,,,,,,0,,analyses/bracket.json
 | `print_time` | per plate: minutes (`90`), `H:MM` or `1h30m`. Required unless `gcode_json` is given. |
 | `material` | spools joined with `+`. Each spool is a type, optionally with `:label` (colour). The type is checked against the printer, and the full name decides whether a spool swap is needed. |
 | `nozzle_mm`, `size_mm` (`XxYxZ`), `mass_g` | optional; used for checks and totals |
-| `due` | hours after the plan start, or an ISO date-time |
+| `due` | hours after the plan start, or an ISO date-time. A date-time with a UTC offset (`2026-11-24T14:00+01:00`) is converted to local time (or to `--start`'s offset, if it has one). |
 | `priority` | integer, higher is scheduled first (default 0) |
-| `models` | printer models the file was sliced for, joined with `+` (empty means any) |
-| `gcode_json` | path to a gcode-insight analysis, relative to the CSV. Values in the row override it. |
+| `models` | printer models the file was sliced for, joined with `+`. Empty means the model from `gcode_json`, or any model when there is none. |
+| `gcode_json` | path to a gcode-insight analysis, relative to the CSV. Values in the row override it. When an overriding value is clearly different (print time or mass more than 10% apart, another material or colour, another nozzle, other models), the job gets a `warning:` note and the warning is printed to stderr. Leave a column empty to use the analysis. |
 
 Lines starting with `#` are ignored.
 
@@ -419,12 +441,14 @@ pip install -e ".[dev]"
 ruff check . && ruff format --check . && mypy && pytest --cov
 ```
 
-The 284 tests include scheduler scenarios with timelines worked out by hand (for example, a
+The 326 tests include scheduler scenarios with timelines worked out by hand (for example, a
 12-hour plate started Monday 08:05 ends at 20:05, its successor is set up at Tuesday 08:00, and
 the final plate is cleared Wednesday 08:00). They also cover calendar edge cases (weekends,
 shifts past midnight, windows too short for a task), operator contention, including two final
-plates competing for one operator, and loading the real JSON output of gcode-insight. CI runs
-on Ubuntu and Windows with Python 3.10 and 3.13.
+plates competing for one operator, and loading the real JSON output of gcode-insight 0.1.0 and
+0.2.0. CI runs on Ubuntu and Windows with Python 3.10 and 3.13. A separate `interop` job installs
+gcode-insight v0.2.0, analyses the G-code fixtures with it and checks that the live output imports
+the same as the committed JSON, including a PowerShell 5.1 `>` redirect on Windows.
 
 For the planners added in v0.2.0, the tests check objective terms against hand-derived values,
 check that the local search never returns a worse plan than its start and that every plan it
@@ -453,7 +477,8 @@ by `tests/gap_study.py` (`python tests/gap_study.py` prints them).
   CSV export lists plates only; the clearing tasks are in the text, JSON and HTML output.
 - Loading AMS spools is assumed to happen within `material_change_min`.
 - The local search with a `--time-limit` is not repeatable across machines. The default
-  2000-iteration budget took about 1.4 s for the 26-plate example on the development machine.
+  2000-iteration budget took 2.4 to 3.3 s for the 26-plate example on the development machine
+  (it varies with machine load).
 - Material compatibility is by type only. TPU in an AMS, hardened nozzles for CF filaments and
   similar rules are left to your own `materials` lists.
 - Wall-clock times are naive local time, so daylight-saving changes are not modelled.

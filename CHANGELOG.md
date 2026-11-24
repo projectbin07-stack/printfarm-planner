@@ -4,6 +4,43 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-24
+
+This release changes planning results for files analysed by gcode-insight and for spools with
+colour labels; the README example figures were re-measured.
+
+### Fixed
+
+- **False material changes.** A job spool without a colour (`PLA`, which is all gcode-insight
+  0.1.0 could produce) never matched a loaded, labelled spool (`PLA:black`), so every such job was
+  charged a material change. A spool without a label now matches any loaded spool of its type, and
+  a slicer colour code matches a named spool of the nearest reference colour (`#161616` is
+  `black`).
+- **Colour was lost on import.** With gcode-insight 0.2.0 output each spool now carries the
+  filament colour (`PLA:#FFFFFF`), so a two-colour PLA job needs two PLA spools and colour swaps
+  are counted.
+- **Files could run on the wrong printer model.** The model a file was sliced for
+  (`printer_model`, gcode-insight 0.2.0+) was ignored; a file sliced for a P1S was offered to the
+  A1s, and one sliced for a Voron to a P1S. The job is now limited to that model (`Bambu Lab P1S`
+  -> `P1S`); the CSV `models` column overrides it, with a warning.
+- **The README's PowerShell pipeline failed.** JSON, CSV and fleet files written by Windows
+  PowerShell (UTF-8 with a BOM, or UTF-16) were rejected with `Unexpected UTF-8 BOM`. They are now
+  read; the README uses gcode-insight's new `--out` instead of `>`.
+- **A `due` with a UTC offset crashed** with a `TypeError` traceback and exit 1 (the code for
+  "unschedulable"). It is now converted to the plan's time zone.
+- **CSV values silently overrode the analysis.** A CSV value that is clearly different from the
+  `gcode_json` analysis (time or mass more than 10% apart, another material or colour, nozzle or
+  models) still wins, but now adds a `warning:` note and prints a warning to stderr.
+
+### Added
+
+- `gcode-insight` JSON `schema_version` handling: 1 (0.1.0, no field) and 2 (0.2.0) load; a newer
+  version loads with a note.
+- CI `interop` job that installs gcode-insight v0.2.0 and checks that its live output imports like
+  the committed fixtures, including a PowerShell 5.1 redirect on Windows.
+- Test fixtures from gcode-insight 0.2.0 (with the G-code they come from); the 0.1.0 output is
+  kept in `tests/fixtures/gcode-insight-0.1.0/`.
+
 ## [0.3.0] - 2026-11-19
 
 This release changes planning results. **The wait figures of v0.2.0 understated the wait of
@@ -122,6 +159,7 @@ First release.
 - Not yet used on a real print farm. Example jobs are invented, and print times come from slicer
   or model estimates. See the README section "Known limitations".
 
+[0.4.0]: https://github.com/projectbin07-stack/printfarm-planner/releases/tag/v0.4.0
 [0.3.0]: https://github.com/projectbin07-stack/printfarm-planner/releases/tag/v0.3.0
 [0.2.0]: https://github.com/projectbin07-stack/printfarm-planner/releases/tag/v0.2.0
 [0.1.0]: https://github.com/projectbin07-stack/printfarm-planner/releases/tag/v0.1.0
