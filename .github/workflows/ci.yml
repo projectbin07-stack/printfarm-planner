@@ -44,3 +44,39 @@ jobs:
           printfarm-planner plan --fleet examples/fleet.json examples/jobs.csv --start 2026-11-23T08:00 --html plan.html --csv plan.csv
           printfarm-planner plan --fleet examples/fleet.json examples/jobs.csv --start 2026-11-23T08:00 --improve anneal --iterations 200
           printfarm-planner compare --fleet examples/fleet.json examples/small-jobs.csv --start 2026-11-23T08:00 --html compare.html
+
+  interop:
+    # Live check against the pinned gcode-insight release: its JSON must import as the
+    # committed fixtures do (colour, printer model), also when PowerShell 5.1 writes the file.
+    name: interop / gcode-insight v0.2.0 / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "gcode-insight @ git+https://github.com/projectbin07-stack/gcode-insight.git@v0.2.0"
+      - name: Interop tests
+        run: pytest -q tests/test_interop.py
+      - name: Pipeline with --out
+        shell: bash
+        run: |
+          gcode-insight analyze tests/fixtures/gcode/bambu_cube.gcode --json --out bambu.json
+          printfarm-planner check --fleet examples/fleet.json bambu.json | tee check.txt
+          grep -q "^bambu  P1S-1$" check.txt
+      - name: Pipeline with a PowerShell 5.1 redirect
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          gcode-insight analyze tests/fixtures/gcode/bambu_cube.gcode --json > ps_bambu.json
+          $bytes = [System.IO.File]::ReadAllBytes("ps_bambu.json")
+          Write-Output ("first bytes: " + (($bytes[0..1] | ForEach-Object { '{0:X2}' -f $_ }) -join ' '))
+          printfarm-planner check --fleet examples/fleet.json ps_bambu.json
+          if ($LASTEXITCODE -ne 0) { exit 1 }
