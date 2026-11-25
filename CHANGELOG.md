@@ -4,7 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] - 2026-11-25
+
+For Print Farm OS, which calls the planner in-process to re-plan a live fleet. Plans for the
+README examples are unchanged. `docs/gantt.png` and `docs/compare.png` are re-rendered with
+0.6.0 (headless Edge, dark scheme, same inputs): they now show the model as `A1 mini` and the
+0.6.0 footer; the plans, objectives and figures in them are the same as in the 0.4.0 renders
+apart from the measured run times.
 
 ### Added
 
@@ -258,6 +264,7 @@ First release.
 - Not yet used on a real print farm. Example jobs are invented, and print times come from slicer
   or model estimates. See the README section "Known limitations".
 
+[0.6.0]: https://github.com/projectbin07-stack/printfarm-planner/releases/tag/v0.6.0
 [0.5.0]: https://github.com/projectbin07-stack/printfarm-planner/releases/tag/v0.5.0
 [0.4.0]: https://github.com/projectbin07-stack/printfarm-planner/releases/tag/v0.4.0
 [0.3.0]: https://github.com/projectbin07-stack/printfarm-planner/releases/tag/v0.3.0

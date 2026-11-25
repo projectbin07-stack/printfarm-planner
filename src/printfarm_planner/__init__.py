@@ -9,7 +9,7 @@ members, the CLI's text layout) may change in any release.
 
 from __future__ import annotations
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 from .compare import Run, compare
 from .compat import incompatibilities
