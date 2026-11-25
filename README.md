@@ -300,15 +300,19 @@ bracket,6,,,,,,,0,,analyses/bracket.json
 |---|---|
 | `name` | required, unique |
 | `copies` | number of plates (default 1) |
-| `print_time` | per plate: minutes (`90`), `H:MM` or `1h30m`. Required unless `gcode_json` is given. |
+| `print_time` | per plate: minutes (`90`), `H:MM`, `H:MM:SS` (`1:30:00`), or hours/minutes/seconds (`1h30m`, `2h 15m`, `2h 15m 30s`, `1.5h`). Required unless `gcode_json` is given. |
 | `material` | spools joined with `+`. Each spool is a type, optionally with `:label` (colour). The type's base polymer is checked against the printer, and the full name decides whether a spool swap is needed (see below). |
 | `nozzle_mm`, `size_mm` (`XxYxZ`), `mass_g` | optional; used for checks and totals |
 | `due` | hours after the plan start, or an ISO date-time. A date-time with a UTC offset (`2026-11-24T14:00+01:00`) is converted to local time (or to `--start`'s offset, if it has one). |
 | `priority` | integer, higher is scheduled first (default 0) |
-| `models` | printer models the file was sliced for, joined with `+`. Empty means the model from `gcode_json`, or any model when there is none. |
+| `models` | printer models the file was sliced for, joined with `+` (registry aliases such as `X1C` work). Empty means the model from `gcode_json`, or any model when there is none. |
 | `gcode_json` | path to a gcode-insight analysis, relative to the CSV. Values in the row override it. When an overriding value is clearly different (print time or mass more than 10% apart, another material or colour, another nozzle, other models), the job gets a `warning:` note and the warning is printed to stderr. Leave a column empty to use the analysis. |
 
-Lines starting with `#` are ignored.
+Lines starting with `#` are ignored. The delimiter may be `,`, `;` or a tab; the one used in the
+header line applies to the whole file, so a `;` file from a spreadsheet can keep commas inside
+fields. Numbers always use `.` as the decimal point. Columns the planner does not know (`notes`,
+`customer`) are ignored, with a warning on stderr. A column name that looks like a misspelt
+planner column (`print_tme`) is an error, so that a typo cannot silently drop a value.
 
 #### Material names
 

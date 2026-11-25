@@ -142,3 +142,14 @@ def test_module_entry_point() -> None:
         stdin=subprocess.DEVNULL,
     )
     assert "P1S" in result.stdout
+
+
+def test_check_reports_ignored_csv_columns(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    jobs = tmp_path / "semi.csv"
+    jobs.write_text("name;print_time;material;notes\nA;1:30:00;PLA Silk;rush\n", encoding="utf-8")
+    assert main(["check", "--fleet", FLEET, str(jobs)]) == 0
+    captured = capsys.readouterr()
+    assert "A  P1S-1, P1S-2, A1-1, A1-2, A1-Mini" in captured.out
+    assert "warning: semi.csv: ignored column(s) notes" in captured.err

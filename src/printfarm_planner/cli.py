@@ -180,9 +180,10 @@ def build_parser() -> argparse.ArgumentParser:
 def _load_jobs(args: argparse.Namespace, start: datetime) -> list[Job]:
     material = normalise_spool(args.material) if args.material else None
     jobs: list[Job] = []
+    warnings: list[str] = []
     for path in args.inputs:
         if path.suffix.lower() == ".csv":
-            jobs.extend(load_jobs_csv(path, start, prep_min=args.prep_min))
+            jobs.extend(load_jobs_csv(path, start, prep_min=args.prep_min, warnings=warnings))
         else:
             jobs.append(
                 load_insight_file(
@@ -198,6 +199,8 @@ def _load_jobs(args: argparse.Namespace, start: datetime) -> list[Job]:
         raise JobError(f"duplicate job name(s) across inputs: {', '.join(duplicates)}")
     if not jobs:
         raise JobError("no jobs found in the inputs")
+    for warning in warnings:
+        print(f"printfarm-planner: warning: {warning}", file=sys.stderr)
     for j in jobs:
         for note in j.notes:
             if note.startswith("warning: "):

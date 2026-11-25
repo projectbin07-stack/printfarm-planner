@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import difflib
 import re
 from collections.abc import Mapping
 from datetime import datetime
@@ -50,8 +51,14 @@ CSV_COLUMNS = (
     "gcode_json",
 )
 
-_HM = re.compile(r"^\s*(?:(\d+(?:\.\d+)?)\s*h)?\s*(?:(\d+(?:\.\d+)?)\s*m(?:in)?)?\s*$", re.I)
-_CLOCK = re.compile(r"^\s*(\d+):(\d{2})\s*$")
+_HMS = re.compile(
+    r"^\s*(?:(\d+(?:\.\d+)?)\s*h)?\s*(?:(\d+(?:\.\d+)?)\s*m(?:in)?)?"
+    r"\s*(?:(\d+(?:\.\d+)?)\s*s)?\s*$",
+    re.I,
+)
+_CLOCK = re.compile(r"^\s*(\d+):(\d{2})(?::(\d{2}))?\s*$")
+#: Delimiters a jobs CSV may use; the one found in the header line is used for the whole file.
+_DELIMITERS = (",", ";", "\t")
 
 
 class JobError(ValueError):
@@ -59,7 +66,11 @@ class JobError(ValueError):
 
 
 def parse_duration_min(text: str) -> float:
-    """``"90"`` / ``"1:30"`` / ``"1h30m"`` / ``"1.5h"`` -> ``90.0`` minutes."""
+    """Minutes from ``"90"``, ``"1:30"``, ``"1:30:00"``, ``"1h30m"``, ``"2h 15m 30s"``, ``"1.5h"``.
+
+    A bare number is minutes. ``H:MM`` and ``H:MM:SS`` are clock durations; seconds may be given
+    with an ``s`` suffix (``"2h 15m 30s"`` is 135.5 minutes).
+    """
     raw = text.strip()
     try:
         value = float(raw)
@@ -71,12 +82,18 @@ def parse_duration_min(text: str) -> float:
         return value
     clock = _CLOCK.match(raw)
     if clock is not None:
-        value = int(clock.group(1)) * 60 + int(clock.group(2))
+        hours, minutes, seconds = clock.groups()
+        if int(minutes) > 59 or (seconds is not None and int(seconds) > 59):
+            raise JobError(f"bad duration {text!r}; minutes and seconds must be 00-59")
+        value = int(hours) * 60 + int(minutes) + int(seconds or 0) / 60.0
     else:
-        match = _HM.match(raw)
+        match = _HMS.match(raw)
         if match is None or not any(match.groups()):
-            raise JobError(f"bad duration {text!r}; use minutes, H:MM or 1h30m")
-        value = float(match.group(1) or 0) * 60 + float(match.group(2) or 0)
+            raise JobError(
+                f"bad duration {text!r}; use minutes, H:MM, H:MM:SS or 1h30m (2h 15m 30s)"
+            )
+        h, m, s = (float(g or 0) for g in match.groups())
+        value = h * 60 + m + s / 60.0
     if value <= 0:
         raise JobError(f"duration must be positive, got {text!r}")
     return value
@@ -294,19 +311,44 @@ def load_insight_file(
     )
 
 
-def load_jobs_csv(path: Path, start: datetime, *, prep_min: float = 0.0) -> list[Job]:
-    """Read a jobs CSV. Columns are listed in :data:`CSV_COLUMNS`; see the README."""
+def _delimiter(header_line: str) -> str:
+    """The delimiter of a jobs CSV, judged from its header line (``,`` unless it has none)."""
+    counts = {d: header_line.count(d) for d in _DELIMITERS}
+    best = max(_DELIMITERS, key=lambda d: counts[d])
+    return best if counts[best] > 0 else ","
+
+
+def load_jobs_csv(
+    path: Path,
+    start: datetime,
+    *,
+    prep_min: float = 0.0,
+    warnings: list[str] | None = None,
+) -> list[Job]:
+    """Read a jobs CSV. Columns are listed in :data:`CSV_COLUMNS`; see the README.
+
+    The delimiter may be ``,``, ``;`` (spreadsheets in locales with a decimal comma) or a tab; it
+    is taken from the header line. Columns the planner does not use are ignored and reported in
+    ``warnings``, except names that look like a misspelt planner column (``print_tme``), which
+    are errors so that a typo cannot silently drop a value.
+    """
     try:
         text = read_text(path)
     except (OSError, ValueError) as exc:
         raise JobError(f"{path}: {exc}") from None
-    reader = csv.DictReader(line for line in text.splitlines() if not line.startswith("#"))
+    lines = [line for line in text.splitlines() if not line.startswith("#")]
+    first = next((line for line in lines if line.strip()), "")
+    reader = csv.DictReader(lines, delimiter=_delimiter(first))
     header = [h.strip().lower() for h in reader.fieldnames or []]
     if "name" not in header:
         raise JobError(f"{path}: missing required column 'name'")
-    unknown = sorted(set(header) - set(CSV_COLUMNS))
-    if unknown:
-        raise JobError(f"{path}: unknown column(s) {', '.join(unknown)}")
+    unknown = sorted(set(header) - set(CSV_COLUMNS) - {""})
+    for column in unknown:
+        close = difflib.get_close_matches(column, CSV_COLUMNS, n=1, cutoff=0.8)
+        if close:
+            raise JobError(f"{path}: unknown column {column!r}; did you mean {close[0]!r}?")
+    if unknown and warnings is not None:
+        warnings.append(f"{path.name}: ignored column(s) {', '.join(unknown)}")
 
     jobs: list[Job] = []
     seen: set[str] = set()
@@ -314,7 +356,7 @@ def load_jobs_csv(path: Path, start: datetime, *, prep_min: float = 0.0) -> list
         row = {
             (k or "").strip().lower(): (v or "").strip()
             for k, v in raw.items()
-            if isinstance(v, str) or v is None
+            if (isinstance(v, str) or v is None) and (k or "").strip().lower() in CSV_COLUMNS
         }
         if not any(row.values()):
             continue

@@ -22,13 +22,14 @@ from printfarm_planner.jobs import (
 @pytest.mark.parametrize(
     ("text", "minutes"),
     [("90", 90), ("12.5", 12.5), ("1:30", 90), ("1h30m", 90), ("2h", 120), ("45m", 45),
-     ("1.5h", 90), ("1h 5min", 65), (" 0:07 ", 7)],
+     ("1.5h", 90), ("1h 5min", 65), (" 0:07 ", 7), ("2h 15m", 135), ("1:30:00", 90),
+     ("2h 15m 30s", 135.5), ("0:00:30", 0.5), ("90s", 1.5), ("1h 0m 0s", 60)],
 )  # fmt: skip
 def test_parse_duration(text: str, minutes: float) -> None:
     assert parse_duration_min(text) == minutes
 
 
-@pytest.mark.parametrize("text", ["", "abc", "0", "-5", "0:00", "1x", "h"])
+@pytest.mark.parametrize("text", ["", "abc", "0", "-5", "0:00", "1x", "h", "0:00:00", "1:2:3"])
 def test_parse_duration_rejects(text: str) -> None:
     with pytest.raises(JobError):
         parse_duration_min(text)
@@ -162,7 +163,9 @@ def test_csv_json_overrides(tmp_path: Path) -> None:
     ("text", "message"),
     [
         ("print_time\n60\n", "missing required column 'name'"),
-        ("name,colour\na,red\n", "unknown column"),
+        ("name,print_tme,material\na,60,PLA\n", "did you mean .print_time."),
+        ("name,copies,print_time,material\nA,1,1:75,PLA\n", "00-59"),
+        ("name,copies,print_time,material\nA,1,1:30:61,PLA\n", "00-59"),
         ("name,print_time,material\n,60,PLA\n", "name is empty"),
         ("name,material\na,PLA\n", "print_time is empty"),
         ("name,print_time\na,60\n", "material is empty"),
@@ -219,3 +222,40 @@ def test_plus_in_material_names(tmp_path: Path, material: str, spools: tuple[str
     csv_text = f"name,print_time,material\na,60,{material}\n"
     (loaded,) = load_jobs_csv(write(tmp_path, csv_text), MONDAY_8)
     assert loaded.spools == spools
+
+
+def test_csv_ignores_extra_columns_and_reports_them(tmp_path: Path) -> None:
+    # Audit #49 repro (extra.csv): "unknown column(s) notes", exit 2.
+    path = write(tmp_path, "name,copies,print_time,material,notes,Customer\nA,1,90,PLA,rush,ACME\n")
+    warnings: list[str] = []
+    (job_a,) = load_jobs_csv(path, MONDAY_8, warnings=warnings)
+    assert (job_a.name, job_a.print_time_min, job_a.spools) == ("A", 90.0, ("PLA",))
+    assert warnings == ["jobs.csv: ignored column(s) customer, notes"]
+    # Without a warnings list the columns are still ignored.
+    assert load_jobs_csv(path, MONDAY_8)[0].print_time_min == 90.0
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "name;copies;print_time;material\nA;1;90;PLA\n",  # audit repro semi.csv
+        "name\tcopies\tprint_time\tmaterial\nA\t1\t90\tPLA\n",
+        "# comment first\nname;copies;print_time;material\n\nA;1;1:30:00;PLA\n",
+    ],
+)
+def test_csv_semicolon_and_tab_delimiters(tmp_path: Path, text: str) -> None:
+    (job_a,) = load_jobs_csv(write(tmp_path, text), MONDAY_8)
+    assert (job_a.name, job_a.copies, job_a.print_time_min, job_a.spools) == (
+        "A",
+        1,
+        90.0,
+        ("PLA",),
+    )
+
+
+def test_semicolon_csv_keeps_commas_inside_fields(tmp_path: Path) -> None:
+    text = "name;print_time;material;size_mm\nA;2h 15m 30s;PLA:white+PETG;120,80,40\n"
+    (job_a,) = load_jobs_csv(write(tmp_path, text), MONDAY_8)
+    assert job_a.print_time_min == 135.5
+    assert job_a.spools == ("PLA:white", "PETG")
+    assert job_a.size_mm == (120.0, 80.0, 40.0)
