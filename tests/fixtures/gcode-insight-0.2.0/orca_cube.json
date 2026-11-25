@@ -1,0 +1,135 @@
+{
+  "schema_version": 2,
+  "source": "orca_cube.gcode",
+  "line_count": 291,
+  "metadata": {
+    "slicer": "OrcaSlicer",
+    "slicer_version": "2.1.1",
+    "estimated_time_s": 35.0,
+    "model_time_s": null,
+    "filament_used_mm": [
+      58.52
+    ],
+    "filament_used_cm3": [
+      0.14
+    ],
+    "filament_used_g": [
+      0.15
+    ],
+    "layer_height": 0.2,
+    "first_layer_height": 0.2,
+    "nozzle_diameter": 0.4,
+    "filament_type": [
+      "ABS"
+    ],
+    "filament_density": [
+      1.04
+    ],
+    "filament_diameter": [
+      1.75
+    ],
+    "total_layers": 5,
+    "filament_colour": [],
+    "printer_model": "Voron 2.4 350"
+  },
+  "layer_mode": "markers",
+  "layers": [
+    {
+      "index": 1,
+      "z": 0.2,
+      "filament_mm": 11.704279999999999,
+      "extrude_path_mm": 312.80000000000007,
+      "travel_mm": 146.1225755681915,
+      "time_s": 12.962460219778189,
+      "retractions": 3
+    },
+    {
+      "index": 2,
+      "z": 0.4,
+      "filament_mm": 11.704279999999999,
+      "extrude_path_mm": 312.80000000000007,
+      "travel_mm": 28.247875144394023,
+      "time_s": 4.057130991178713,
+      "retractions": 3
+    },
+    {
+      "index": 3,
+      "z": 0.6,
+      "filament_mm": 11.704280000000008,
+      "extrude_path_mm": 312.80000000000007,
+      "travel_mm": 28.247875144394023,
+      "time_s": 4.057130991178713,
+      "retractions": 3
+    },
+    {
+      "index": 4,
+      "z": 0.8,
+      "filament_mm": 11.70428000000004,
+      "extrude_path_mm": 312.80000000000007,
+      "travel_mm": 28.247875144394023,
+      "time_s": 4.057130991178713,
+      "retractions": 3
+    },
+    {
+      "index": 5,
+      "z": 1.0,
+      "filament_mm": 11.70428000000004,
+      "extrude_path_mm": 312.80000000000007,
+      "travel_mm": 28.247875144394023,
+      "time_s": 4.057130991178713,
+      "retractions": 3
+    }
+  ],
+  "startup": {
+    "index": 0,
+    "z": null,
+    "filament_mm": 0.0,
+    "extrude_path_mm": 0.0,
+    "travel_mm": 0.0,
+    "time_s": 0.0,
+    "retractions": 0
+  },
+  "filament_mm": 58.521400000000085,
+  "volume_cm3": 0.14076046274330795,
+  "mass_g": 0.14639088125304026,
+  "tools": [
+    {
+      "tool": 0,
+      "filament_mm": 58.521400000000085,
+      "volume_cm3": 0.14076046274330795,
+      "mass_g": 0.14639088125304026,
+      "material": "ABS",
+      "density": 1.04,
+      "diameter": 1.75,
+      "colour": null
+    }
+  ],
+  "extrude_path_mm": 1563.9999999999998,
+  "travel_mm": 259.1140761457677,
+  "retractions": 15,
+  "tool_changes": 0,
+  "bounding_box": {
+    "min_x": 100.225,
+    "max_x": 119.775,
+    "min_y": 100.225,
+    "max_y": 119.775,
+    "min_z": 0.2,
+    "max_z": 1.0
+  },
+  "estimated_time_s": 29.19098418449313,
+  "dwell_time_s": 0.0,
+  "time_comparison": {
+    "slicer_time_s": 35.0,
+    "basis": "total estimated time",
+    "estimate_s": 29.19098418449313,
+    "difference_s": -5.809015815506871,
+    "ratio": 0.8340281195569466
+  },
+  "nozzle_temp_max": 260.0,
+  "bed_temp_max": 100.0,
+  "fan_max_percent": {
+    "0": 50.0
+  },
+  "warnings": [],
+  "layer_count": 5
+}

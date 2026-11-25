@@ -1,6 +1,6 @@
-"""Job loading. The JSON fixtures are real `gcode-insight analyze --json` output (0.2.0, and 0.1.0
-in tests/fixtures/gcode-insight-0.1.0) for gcode-insight's synthetic G-code fixtures (see
-tests/fixtures/README.md)."""
+"""Job loading. The JSON fixtures are real `gcode-insight analyze --json` output (0.3.0, with 0.2.0
+and 0.1.0 output in tests/fixtures/gcode-insight-0.2.0 and -0.1.0) for gcode-insight's synthetic
+G-code fixtures (see tests/fixtures/README.md)."""
 
 from __future__ import annotations
 
@@ -49,6 +49,19 @@ def test_bambu_analysis() -> None:
     assert job.size_mm == (119.79, 136.79, 1.0)
     assert job.mass_g == pytest.approx(0.2184345)
     assert job.notes == ("time: slicer total estimate", "sliced for Bambu Lab P1S")
+
+
+def test_gcode_insight_0_2_0_output_still_loads() -> None:
+    old = load_insight_file(FIXTURES / "gcode-insight-0.2.0" / "bambu_cube.json")
+    new = load_insight_file(FIXTURES / "bambu_cube.json")
+    assert old == new  # schema 3 only adds estimated_time_source
+
+
+def test_cura_print_time_from_gcode_insight_0_3_0() -> None:
+    job = load_insight_file(FIXTURES / "cura_griffin.json", default_material="PLA")
+    assert job.print_time_min == pytest.approx(95 / 60)
+    assert job.notes[0] == "time: slicer total estimate from ;PRINT.TIME"
+    assert job.models == frozenset({"ULTIMAKER S5"})
 
 
 def test_gcode_insight_0_1_0_output_still_loads() -> None:

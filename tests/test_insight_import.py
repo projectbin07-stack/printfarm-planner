@@ -138,10 +138,10 @@ def test_csv_models_column_overrides_with_a_warning(tmp_path: Path) -> None:
 
 def test_newer_schema_is_accepted_with_a_note() -> None:
     data = json.loads((FIXTURES / "prusa_cube.json").read_text(encoding="utf-8"))
-    data["schema_version"] = 3
+    data["schema_version"] = 4
     j = job_from_insight(data, "x")
     assert j.spools == ("PETG:#FF8000",)
-    assert any("schema 3 is newer" in n for n in j.notes)
+    assert any("schema 4 is newer" in n for n in j.notes)
 
 
 def test_two_colour_job_needs_two_spools_of_the_same_type() -> None:

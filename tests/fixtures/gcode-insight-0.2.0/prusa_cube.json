@@ -1,0 +1,146 @@
+{
+  "schema_version": 2,
+  "source": "prusa_cube.gcode",
+  "line_count": 325,
+  "metadata": {
+    "slicer": "PrusaSlicer",
+    "slicer_version": "2.7.4+win64",
+    "estimated_time_s": 64.0,
+    "model_time_s": null,
+    "filament_used_mm": [
+      70.23
+    ],
+    "filament_used_cm3": [
+      0.17
+    ],
+    "filament_used_g": [
+      0.21
+    ],
+    "layer_height": 0.2,
+    "first_layer_height": 0.2,
+    "nozzle_diameter": 0.4,
+    "filament_type": [
+      "PETG"
+    ],
+    "filament_density": [
+      1.27
+    ],
+    "filament_diameter": [
+      1.75
+    ],
+    "total_layers": null,
+    "filament_colour": [
+      "#FF8000"
+    ],
+    "printer_model": "MK4S"
+  },
+  "layer_mode": "markers",
+  "layers": [
+    {
+      "index": 1,
+      "z": 0.2,
+      "filament_mm": 11.70428,
+      "extrude_path_mm": 312.80000000000007,
+      "travel_mm": 153.86128551963236,
+      "time_s": 17.018009946870183,
+      "retractions": 3
+    },
+    {
+      "index": 2,
+      "z": 0.4,
+      "filament_mm": 11.704280000000022,
+      "extrude_path_mm": 312.80000000000007,
+      "travel_mm": 28.247875144394023,
+      "time_s": 8.056218361226115,
+      "retractions": 3
+    },
+    {
+      "index": 3,
+      "z": 0.6,
+      "filament_mm": 11.704280000000026,
+      "extrude_path_mm": 312.80000000000007,
+      "travel_mm": 28.247875144394023,
+      "time_s": 8.056218361226115,
+      "retractions": 3
+    },
+    {
+      "index": 4,
+      "z": 0.8,
+      "filament_mm": 11.70428000000004,
+      "extrude_path_mm": 312.80000000000007,
+      "travel_mm": 28.247875144394023,
+      "time_s": 8.056218361226115,
+      "retractions": 3
+    },
+    {
+      "index": 5,
+      "z": 1.0,
+      "filament_mm": 11.70428000000004,
+      "extrude_path_mm": 312.80000000000007,
+      "travel_mm": 28.247875144394023,
+      "time_s": 8.056218361226115,
+      "retractions": 3
+    },
+    {
+      "index": 6,
+      "z": 1.2,
+      "filament_mm": 11.704279999999983,
+      "extrude_path_mm": 312.80000000000007,
+      "travel_mm": 37.04787514439403,
+      "time_s": 8.819551694559449,
+      "retractions": 3
+    }
+  ],
+  "startup": {
+    "index": 0,
+    "z": null,
+    "filament_mm": 0.0,
+    "extrude_path_mm": 0.0,
+    "travel_mm": 0.0,
+    "time_s": 0.0,
+    "retractions": 0
+  },
+  "filament_mm": 70.22568000000011,
+  "volume_cm3": 0.16891255529196958,
+  "mass_g": 0.21451894522080137,
+  "tools": [
+    {
+      "tool": 0,
+      "filament_mm": 70.22568000000011,
+      "volume_cm3": 0.16891255529196958,
+      "mass_g": 0.21451894522080137,
+      "material": "PETG",
+      "density": 1.27,
+      "diameter": 1.75,
+      "colour": "#FF8000"
+    }
+  ],
+  "extrude_path_mm": 1876.8,
+  "travel_mm": 303.90066124160256,
+  "retractions": 18,
+  "tool_changes": 0,
+  "bounding_box": {
+    "min_x": 115.225,
+    "max_x": 134.775,
+    "min_y": 95.225,
+    "max_y": 114.775,
+    "min_z": 0.2,
+    "max_z": 1.2
+  },
+  "estimated_time_s": 58.06243508633394,
+  "dwell_time_s": 0.0,
+  "time_comparison": {
+    "slicer_time_s": 64.0,
+    "basis": "total estimated time",
+    "estimate_s": 58.06243508633394,
+    "difference_s": -5.937564913666058,
+    "ratio": 0.9072255482239678
+  },
+  "nozzle_temp_max": 240.0,
+  "bed_temp_max": 85.0,
+  "fan_max_percent": {
+    "0": 30.0
+  },
+  "warnings": [],
+  "layer_count": 6
+}

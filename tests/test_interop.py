@@ -19,13 +19,15 @@ gi = pytest.importorskip("gcode_insight")
 GCODE = FIXTURES / "gcode"
 
 
-def test_installed_version_writes_schema_2_or_later() -> None:
+def test_installed_version_writes_schema_3_or_later() -> None:
     major, minor = (int(p) for p in gi.__version__.split(".")[:2])
-    assert (major, minor) >= (0, 2)
-    assert gi.SCHEMA_VERSION >= 2
+    assert (major, minor) >= (0, 3)
+    assert gi.SCHEMA_VERSION >= 3
 
 
-@pytest.mark.parametrize("name", ["bambu_cube", "prusa_cube", "orca_cube", "marlin_generic"])
+@pytest.mark.parametrize(
+    "name", ["bambu_cube", "prusa_cube", "orca_cube", "marlin_generic", "cura_griffin"]
+)
 def test_live_output_imports_like_the_committed_fixture(name: str) -> None:
     live = gi.analyze_file(GCODE / f"{name}.gcode").to_dict()
     # Round-trip through JSON text, as the CLI pipeline does.
@@ -33,9 +35,15 @@ def test_live_output_imports_like_the_committed_fixture(name: str) -> None:
     committed = json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
     for key in ("schema_version", "source", "tools", "bounding_box", "mass_g"):
         assert live[key] == committed[key], key
-    for key in ("filament_type", "filament_colour", "printer_model", "estimated_time_s"):
+    for key in (
+        "filament_type",
+        "filament_colour",
+        "printer_model",
+        "estimated_time_s",
+        "estimated_time_source",
+    ):
         assert live["metadata"][key] == committed["metadata"][key], key
-    default = "PLA" if name == "marlin_generic" else None
+    default = "PLA" if name in ("marlin_generic", "cura_griffin") else None
     assert job_from_insight(live, name, default_material=default) == job_from_insight(
         committed, name, default_material=default
     )
@@ -46,3 +54,10 @@ def test_live_bambu_job_carries_colour_and_model() -> None:
     job = job_from_insight(data, "bambu_cube")
     assert job.spools == ("PLA:#FFFFFF", "PETG:#161616")
     assert job.models == frozenset({"P1S"})
+
+
+def test_live_cura_print_time_becomes_the_job_time() -> None:
+    data = gi.analyze_file(GCODE / "cura_griffin.gcode").to_dict()
+    job = job_from_insight(data, "cura_griffin", default_material="PLA")
+    assert job.print_time_min == pytest.approx(95 / 60)
+    assert "time: slicer total estimate from ;PRINT.TIME" in job.notes

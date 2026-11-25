@@ -31,8 +31,10 @@ __all__ = [
 ]
 
 #: Newest gcode-insight ``analyze --json`` layout this version understands. 0.1.0 output has
-#: no ``schema_version`` (layout 1); layout 2 adds filament colour and the printer model.
-INSIGHT_SCHEMA_VERSION = 2
+#: no ``schema_version`` (layout 1); layout 2 adds filament colour and the printer model; layout
+#: 3 (gcode-insight 0.3.0) adds ``metadata.estimated_time_source`` and reads Cura's
+#: ``;PRINT.TIME`` header.
+INSIGHT_SCHEMA_VERSION = 3
 
 #: Relative difference above which a CSV value that overrides the G-code analysis is reported.
 _CONFLICT_TOLERANCE = 0.10
@@ -216,7 +218,11 @@ def job_from_insight(
     slicer_total = _get(data, "metadata", "estimated_time_s")
     if isinstance(slicer_total, (int, float)) and slicer_total > 0:
         minutes = float(slicer_total) / 60.0
-        notes.append("time: slicer total estimate")
+        source = _get(data, "metadata", "estimated_time_source")
+        if isinstance(source, str) and source.startswith(";"):
+            notes.append(f"time: slicer total estimate from {source}")  # Cura header comments
+        else:
+            notes.append("time: slicer total estimate")
     else:
         model = data.get("estimated_time_s")
         if not isinstance(model, (int, float)) or model <= 0:

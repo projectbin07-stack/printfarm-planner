@@ -228,15 +228,16 @@ For each analysis, the job uses:
 
 | Field | Taken from |
 |---|---|
-| print time | the slicer's total estimate in the file. If there is none, gcode-insight's model estimate plus `--prep-min` (the model excludes heating, homing and levelling). |
+| print time | the slicer's total estimate in the file (for Cura files, `;PRINT.TIME` or `;TIME`, read by gcode-insight 0.3.0+). If there is none, gcode-insight's model estimate plus `--prep-min` (the model excludes heating, homing and levelling). |
 | spools | each tool that extruded: gcode-insight's material, falling back to the slicer's filament type, then `--material`; plus the slicer's filament colour when the file has one (gcode-insight 0.2.0+), for example `PLA:#161616` |
-| models | the printer model the file was sliced for (gcode-insight 0.2.0+), with a `Bambu Lab ` prefix dropped: `Bambu Lab P1S` -> `P1S`. The job then runs only on printers of that model. A file sliced for a model your fleet does not have (`Voron 2.4 350`) has no printer; set the CSV `models` column to override. |
+| models | the printer model the file was sliced for (gcode-insight 0.2.0+), resolved through the shared registry: `Bambu Lab P1S` -> `P1S`, `Bambu Lab X1 Carbon` -> `X1 Carbon`. The job then runs only on printers of that model. A file sliced for a model your fleet does not have (`Voron 2.4 350`) has no printer; set the CSV `models` column to override. |
 | nozzle | slicer metadata, if present |
 | size | extent of all moves (X/Y span, max Z). This includes purge lines, so it can overstate the part. |
 | mass | gcode-insight's mass estimate |
 
 Output of gcode-insight 0.1.0 (no `schema_version`) still loads: its spools have no colour and the
-job may run on any compatible model.
+job may run on any compatible model. Output of 0.2.0 (`schema_version` 2) loads the same as 0.3.0
+output (3), which only adds `metadata.estimated_time_source`.
 
 How spools are matched against what a printer has loaded: the material type must be equal. If
 either side has no colour label (`PLA`), any spool of that type serves. Otherwise the labels must
@@ -474,10 +475,13 @@ The 326 tests include scheduler scenarios with timelines worked out by hand (for
 12-hour plate started Monday 08:05 ends at 20:05, its successor is set up at Tuesday 08:00, and
 the final plate is cleared Wednesday 08:00). They also cover calendar edge cases (weekends,
 shifts past midnight, windows too short for a task), operator contention, including two final
-plates competing for one operator, and loading the real JSON output of gcode-insight 0.1.0 and
-0.2.0. CI runs on Ubuntu and Windows with Python 3.10 and 3.13. A separate `interop` job installs
-gcode-insight v0.2.0, analyses the G-code fixtures with it and checks that the live output imports
-the same as the committed JSON, including a PowerShell 5.1 `>` redirect on Windows.
+plates competing for one operator, and loading the real JSON output of gcode-insight 0.1.0,
+0.2.0 and 0.3.0. CI runs on Ubuntu and Windows with Python 3.10 and 3.13. A separate `interop` job
+installs gcode-insight v0.3.0, analyses the G-code fixtures (including a Cura Griffin-style file)
+with it, checks that the live output imports the same as the committed JSON, writes fresh JSON
+with the gcode-insight CLI and runs `printfarm-planner check` and `plan` on it, and repeats the
+check through a PowerShell 5.1 `>` redirect on Windows. A `registry` job checks that the vendored
+`registry.py` and `print_registry.json` match gcode-insight v0.3.0 byte for byte.
 
 For the planners added in v0.2.0, the tests check objective terms against hand-derived values,
 check that the local search never returns a worse plan than its start and that every plan it

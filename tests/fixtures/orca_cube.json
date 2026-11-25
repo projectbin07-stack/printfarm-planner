@@ -1,11 +1,12 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "source": "orca_cube.gcode",
   "line_count": 291,
   "metadata": {
     "slicer": "OrcaSlicer",
     "slicer_version": "2.1.1",
     "estimated_time_s": 35.0,
+    "estimated_time_source": "estimated printing time (normal mode)",
     "model_time_s": null,
     "filament_used_mm": [
       58.52

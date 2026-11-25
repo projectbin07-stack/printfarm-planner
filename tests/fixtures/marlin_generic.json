@@ -1,11 +1,12 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "source": "marlin_generic.gcode",
   "line_count": 79,
   "metadata": {
     "slicer": null,
     "slicer_version": null,
     "estimated_time_s": null,
+    "estimated_time_source": null,
     "model_time_s": null,
     "filament_used_mm": [],
     "filament_used_cm3": [],

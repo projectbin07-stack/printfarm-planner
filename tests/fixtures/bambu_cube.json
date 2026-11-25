@@ -1,11 +1,12 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "source": "bambu_cube.gcode",
   "line_count": 350,
   "metadata": {
     "slicer": "BambuStudio",
     "slicer_version": "01.10.01.50",
     "estimated_time_s": 393.0,
+    "estimated_time_source": "total estimated time",
     "model_time_s": 27.0,
     "filament_used_mm": [
       47.16,
