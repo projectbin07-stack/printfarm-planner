@@ -4,7 +4,15 @@ import pytest
 
 from helpers import job, printer
 from printfarm_planner.compat import fits_bed, incompatibilities
-from printfarm_planner.model import Plate, material_type, normalise_spool
+from printfarm_planner.model import (
+    Plate,
+    base_material,
+    material_allowed,
+    material_type,
+    normalise_spool,
+    split_spools,
+    spool_matches,
+)
 
 
 def test_normalise_spool() -> None:
@@ -79,3 +87,41 @@ def test_all_reasons_reported_together() -> None:
         job(spools=("ABS", "PLA"), nozzle=0.6, size=(200, 200, 200)),
     )
     assert len(reasons) == 4
+
+
+@pytest.mark.parametrize("spool", ["PLA-CF", "PLA SILK:gold", "PETG HF:black", "PLA+", "SILK PLA"])
+def test_trade_names_run_where_their_base_polymer_is_allowed(spool: str) -> None:
+    # Audit #42 repro: PLA-CF, PLA Silk and PETG HF matched no printer ("NO PRINTER").
+    assert incompatibilities(printer(model="A1"), job(spools=(spool,))) == []
+
+
+def test_trade_name_of_a_disallowed_polymer_names_the_polymer() -> None:
+    reasons = incompatibilities(printer(model="A1"), job(spools=("ASA AERO",)))
+    assert reasons == ["material ASA AERO (ASA) not allowed on this printer"]
+    unknown = incompatibilities(printer(model="P1S"), job(spools=("PCTG",)))
+    assert unknown == ["material PCTG not allowed on this printer"]
+
+
+def test_base_material_and_allowed() -> None:
+    assert base_material("PLA SILK") == "PLA"
+    assert base_material("PETG HF") == "PETG"
+    assert base_material("PLA-CF") == "PLA"
+    assert base_material("WOOD") is None
+    assert material_allowed("PLA-CF", frozenset({"PLA"}))
+    assert material_allowed("WOOD", frozenset({"WOOD"}))  # custom names still match exactly
+    assert not material_allowed("PETG HF", frozenset({"PLA"}))
+
+
+def test_trade_name_spool_still_needs_its_own_spool() -> None:
+    # Normalising decides where a job may run; a plain PLA spool does not serve PLA-CF.
+    assert not spool_matches("PLA:black", "PLA-CF:black")
+    assert spool_matches("PLA-CF:black", "PLA CF:black")
+    assert spool_matches("PLA SILK:gold", "PLA SILK")
+
+
+def test_split_spools_escapes() -> None:
+    assert split_spools("PLA:white+PETG") == ["PLA:white", "PETG"]
+    assert split_spools("PLA+") == ["PLA+"]
+    assert split_spools("PLA\\+PETG") == ["PLA+PETG"]
+    assert split_spools("PLA++PETG") == ["PLA+", "PETG"]
+    assert split_spools("a\\b") == ["a\\b"]  # a backslash not before "+" is kept

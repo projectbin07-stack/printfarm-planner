@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .model import Job, Printer
+from .model import Job, Printer, base_material, material_allowed
 
 __all__ = ["fits_bed", "incompatibilities"]
 
@@ -26,9 +26,14 @@ def incompatibilities(printer: Printer, job: Job) -> list[str]:
     if job.models and printer.model.name.upper() not in job.models:
         allowed = ", ".join(sorted(job.models))
         reasons.append(f"sliced for {allowed}, printer is {printer.model.name}")
-    missing = sorted(job.materials - printer.allowed_materials)
+    permitted = printer.allowed_materials
+    missing = sorted(m for m in job.materials if not material_allowed(m, permitted))
     if missing:
-        reasons.append(f"material {', '.join(missing)} not allowed on this printer")
+        named = [
+            f"{m} ({base})" if (base := base_material(m)) is not None and base != m else m
+            for m in missing
+        ]
+        reasons.append(f"material {', '.join(named)} not allowed on this printer")
     if len(job.spools) > printer.spool_capacity:
         reasons.append(f"needs {len(job.spools)} filaments, printer holds {printer.spool_capacity}")
     if job.nozzle_mm is not None and abs(job.nozzle_mm - printer.nozzle_mm) > _NOZZLE_TOLERANCE_MM:

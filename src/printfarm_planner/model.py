@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from functools import lru_cache
 
-from .registry import load_registry
+from .registry import load_registry, normalise_material_name
 
 __all__ = [
     "BUILTIN_MODELS",
@@ -13,24 +13,61 @@ __all__ = [
     "Plate",
     "Printer",
     "PrinterModel",
+    "base_material",
     "builtin_model",
     "canonical_model_name",
     "colour_key",
+    "material_allowed",
     "material_type",
     "normalise_spool",
+    "split_spools",
     "spool_matches",
 ]
+
+
+def split_spools(text: str) -> list[str]:
+    r"""Split a ``+``-joined spool list, keeping a ``+`` that belongs to a material name.
+
+    ``"PLA:white+PETG"`` -> ``["PLA:white", "PETG"]``. A ``+`` is part of the name when it is
+    written ``\+``, or when nothing but a ``:`` label or another ``+`` can follow it: ``"PLA+"``,
+    ``"PLA+:black+PETG"`` and ``"PLA++PETG"`` give ``["PLA+"]``, ``["PLA+:black", "PETG"]`` and
+    ``["PLA+", "PETG"]``. ``"PLA\+PETG"`` is the single material ``PLA+PETG``.
+    """
+    parts: list[str] = []
+    current: list[str] = []
+    i = 0
+    while i < len(text):
+        char = text[i]
+        if char == "\\" and text[i + 1 : i + 2] == "+":
+            current.append("+")
+            i += 2
+            continue
+        if char == "+":
+            rest = text[i + 1 :].lstrip()
+            if not rest or rest[0] in ":+":
+                current.append("+")
+            else:
+                parts.append("".join(current))
+                current = []
+            i += 1
+            continue
+        current.append(char)
+        i += 1
+    parts.append("".join(current))
+    return parts
 
 
 def normalise_spool(text: str) -> str:
     """Canonical spool name: ``" pla : black "`` -> ``"PLA:black"``.
 
     A spool is a material type, optionally followed by ``:`` and a colour or
-    other label. The type is upper-cased because it is compared against the
-    printer's material list; the label is kept as written.
+    other label. The type is upper-cased (runs of spaces collapsed) because it
+    is compared against the printer's material list; the label is kept as
+    written. Trade names stay as written (``"PLA SILK"``): the base polymer is
+    looked up only where printer compatibility is decided (:func:`base_material`).
     """
     kind, sep, label = text.strip().partition(":")
-    kind = kind.strip().upper()
+    kind = " ".join(kind.split()).upper()
     if not kind:
         raise ValueError(f"empty material in {text!r}")
     label = label.strip()
@@ -40,6 +77,23 @@ def normalise_spool(text: str) -> str:
 def material_type(spool: str) -> str:
     """``"PLA:black"`` -> ``"PLA"``."""
     return spool.partition(":")[0]
+
+
+def base_material(material: str) -> str | None:
+    """Base polymer from the shared registry: ``"PLA SILK"`` / ``"PETG HF"`` -> PLA / PETG.
+
+    Aliases in ``print_registry.json`` are tried first, then the leading letters (gcode-insight's
+    rule), so ``"PLA-CF"`` and ``"PLA+"`` give ``"PLA"``; ``None`` for unknown materials.
+    """
+    return load_registry().base_polymer(material)
+
+
+def material_allowed(material: str, allowed: frozenset[str]) -> bool:
+    """True when ``material`` or its base polymer is in a printer's allowed materials."""
+    if material in allowed:
+        return True
+    base = base_material(material)
+    return base is not None and base in allowed
 
 
 #: Reference colours for matching slicer hex codes against named spools. A ``#RRGGBB`` label
@@ -98,7 +152,7 @@ def spool_matches(loaded: str, needed: str) -> bool:
     """
     have_type, _, have_label = loaded.partition(":")
     need_type, _, need_label = needed.partition(":")
-    if have_type != need_type:
+    if normalise_material_name(have_type) != normalise_material_name(need_type):
         return False
     if not have_label or not need_label:
         return True

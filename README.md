@@ -301,7 +301,7 @@ bracket,6,,,,,,,0,,analyses/bracket.json
 | `name` | required, unique |
 | `copies` | number of plates (default 1) |
 | `print_time` | per plate: minutes (`90`), `H:MM` or `1h30m`. Required unless `gcode_json` is given. |
-| `material` | spools joined with `+`. Each spool is a type, optionally with `:label` (colour). The type is checked against the printer, and the full name decides whether a spool swap is needed. |
+| `material` | spools joined with `+`. Each spool is a type, optionally with `:label` (colour). The type's base polymer is checked against the printer, and the full name decides whether a spool swap is needed (see below). |
 | `nozzle_mm`, `size_mm` (`XxYxZ`), `mass_g` | optional; used for checks and totals |
 | `due` | hours after the plan start, or an ISO date-time. A date-time with a UTC offset (`2026-11-24T14:00+01:00`) is converted to local time (or to `--start`'s offset, if it has one). |
 | `priority` | integer, higher is scheduled first (default 0) |
@@ -309,6 +309,24 @@ bracket,6,,,,,,,0,,analyses/bracket.json
 | `gcode_json` | path to a gcode-insight analysis, relative to the CSV. Values in the row override it. When an overriding value is clearly different (print time or mass more than 10% apart, another material or colour, another nozzle, other models), the job gets a `warning:` note and the warning is printed to stderr. Leave a column empty to use the analysis. |
 
 Lines starting with `#` are ignored.
+
+#### Material names
+
+Trade names resolve to their base polymer through the aliases in the shared printer and material
+registry (`print_registry.json`, the same file gcode-insight uses for densities), then by their
+leading letters. `PLA-CF`, `PLA Silk`, `Silk PLA`, `PLA+` and `PETG HF` therefore run on any printer
+that allows PLA or PETG. Unknown names (`PCTG`, `WOOD`) must appear in the printer's `materials`
+list as written.
+
+Printer compatibility uses only the base polymer. Spools are still compared by their full name, so
+a job in `PLA-CF:black` needs a `PLA-CF` spool, and a loaded `PLA:black` spool does not count.
+
+`+` separates spools. To use a `+` inside a material name:
+
+- `PLA+` works as written: a `+` at the end of a name, or before `:` or another `+`, belongs to
+  the name. `PLA+:black+PETG` is the two spools `PLA+:black` and `PETG`, and `PLA++PETG` is `PLA+`
+  and `PETG`.
+- In any other position, escape it as `\+`: `PLA\+PETG` is one material called `PLA+PETG`.
 
 ## How the scheduler works
 
@@ -486,8 +504,9 @@ by `tests/gap_study.py` (`python tests/gap_study.py` prints them).
 - The local search with a `--time-limit` is not repeatable across machines. The default
   2000-iteration budget took 2.4 to 3.3 s for the 26-plate example on the development machine
   (it varies with machine load).
-- Material compatibility is by type only. TPU in an AMS, hardened nozzles for CF filaments and
-  similar rules are left to your own `materials` lists.
+- Material compatibility is by base polymer only: `PLA-CF` may run wherever `PLA` may. TPU in an
+  AMS, hardened nozzles for CF filaments and similar rules are not modelled, and a printer's
+  `materials` list cannot exclude a trade name whose base polymer it allows.
 - Wall-clock times are naive local time, so daylight-saving changes are not modelled.
 - Built-in material defaults are a conservative choice, not manufacturer limits.
 

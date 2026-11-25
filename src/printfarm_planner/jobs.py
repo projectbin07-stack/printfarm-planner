@@ -9,7 +9,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .model import Job, canonical_model_name, material_type, normalise_spool, spool_matches
+from .model import (
+    Job,
+    canonical_model_name,
+    material_type,
+    normalise_spool,
+    split_spools,
+    spool_matches,
+)
 from .textio import read_json, read_text
 
 __all__ = [
@@ -77,7 +84,7 @@ def parse_duration_min(text: str) -> float:
 
 def _parse_spools(text: str) -> tuple[str, ...]:
     try:
-        spools = tuple(normalise_spool(part) for part in text.split("+"))
+        spools = tuple(normalise_spool(part) for part in split_spools(text))
     except ValueError as exc:
         raise JobError(str(exc)) from None
     return spools
@@ -339,7 +346,7 @@ def _row_to_job(row: dict[str, str], base: Path, start: datetime, prep_min: floa
         base_job = job_from_insight(
             data,
             name,
-            default_material=material.split("+")[0] if material else None,
+            default_material=split_spools(material)[0] if material else None,
             prep_min=prep_min,
         )
 

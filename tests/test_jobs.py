@@ -166,7 +166,7 @@ def test_csv_json_overrides(tmp_path: Path) -> None:
         ("name,print_time,material\n,60,PLA\n", "name is empty"),
         ("name,material\na,PLA\n", "print_time is empty"),
         ("name,print_time\na,60\n", "material is empty"),
-        ("name,print_time,material\na,60,PLA+\n", "empty material"),
+        ("name,print_time,material\na,60,:black\n", "empty material"),
         ("name,print_time,material,copies\na,60,PLA,0\n", "copies must be at least 1"),
         ("name,print_time,material,copies\na,60,PLA,two\n", "whole number"),
         ("name,print_time,material,priority\na,60,PLA,high\n", "whole number"),
@@ -200,3 +200,22 @@ def test_csv_json_must_be_object(tmp_path: Path) -> None:
 def test_missing_csv(tmp_path: Path) -> None:
     with pytest.raises(JobError):
         load_jobs_csv(tmp_path / "nope.csv", MONDAY_8)
+
+
+@pytest.mark.parametrize(
+    ("material", "spools"),
+    [
+        ("PLA+", ("PLA+",)),
+        ("PLA+:black", ("PLA+:black",)),
+        ("PLA+:black+PETG", ("PLA+:black", "PETG")),
+        ("PLA++PETG", ("PLA+", "PETG")),
+        ("PLA\\+:red+PETG", ("PLA+:red", "PETG")),
+        ("PLA:white+PETG:black", ("PLA:white", "PETG:black")),
+        ("PLA Silk:gold", ("PLA SILK:gold",)),
+    ],
+)
+def test_plus_in_material_names(tmp_path: Path, material: str, spools: tuple[str, ...]) -> None:
+    # Audit #42: "PLA+" could not be written; "+" was always the spool separator.
+    csv_text = f"name,print_time,material\na,60,{material}\n"
+    (loaded,) = load_jobs_csv(write(tmp_path, csv_text), MONDAY_8)
+    assert loaded.spools == spools
