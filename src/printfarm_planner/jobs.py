@@ -302,6 +302,10 @@ def load_insight_file(
     default_material: str | None = None,
     prep_min: float = 0.0,
 ) -> Job:
+    """A job from a gcode-insight ``analyze --json`` file, named after the file.
+
+    See :func:`job_from_insight` for how the fields are used.
+    """
     try:
         data = read_json(path)
     except (OSError, ValueError) as exc:

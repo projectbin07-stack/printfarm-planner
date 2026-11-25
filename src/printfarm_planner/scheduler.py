@@ -137,12 +137,16 @@ class Clearing:
 
 @dataclass(frozen=True, slots=True)
 class Unscheduled:
+    """A job that no printer can run, with each printer's reasons."""
+
     job: Job
     reasons: dict[str, list[str]]  # printer name -> why it cannot run the job
 
 
 @dataclass(slots=True)
 class Schedule:
+    """A timed plan: plates on printers, clearing tasks, and what could not be scheduled."""
+
     start: datetime
     strategy: str
     printers: tuple[Printer, ...]

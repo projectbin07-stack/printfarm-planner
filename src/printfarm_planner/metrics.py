@@ -13,6 +13,8 @@ __all__ = ["JobResult", "Metrics", "PrinterStats", "compute_metrics"]
 
 @dataclass(frozen=True, slots=True)
 class PrinterStats:
+    """Figures for one printer in a schedule (minutes, utilisation as a fraction)."""
+
     name: str
     model: str
     plates: int
@@ -34,6 +36,8 @@ class PrinterStats:
 
 @dataclass(frozen=True, slots=True)
 class JobResult:
+    """When a scheduled job starts and finishes, and how late it is."""
+
     name: str
     copies: int
     first_start_min: float
@@ -45,6 +49,8 @@ class JobResult:
 
 @dataclass(frozen=True, slots=True)
 class Metrics:
+    """Fleet-wide figures for a schedule, plus per-printer and per-job rows."""
+
     makespan_min: float
     plates: int
     print_min: float

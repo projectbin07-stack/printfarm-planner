@@ -247,6 +247,29 @@ navy, purple, magenta, pink, brown, beige). So the slicer's `#161616` matches a 
 `black`, and `#FFFFFF` matches `white`. Other labels (`galaxy`) must match as written, ignoring
 case. The hex mapping is a heuristic: two different dark reds can both map to `maroon`.
 
+### Using it as a library
+
+Since v0.6.0 the package declares its API in `printfarm_planner.__all__`, documented in
+[docs/api.md](docs/api.md) and kept stable within a minor version, so another Python program can
+plan in-process instead of calling the CLI:
+
+```python
+from datetime import datetime
+from pathlib import Path
+
+from printfarm_planner import PrinterState, load_fleet, load_jobs_csv, plan
+
+start = datetime(2026, 11, 23, 8, 0)
+schedule = plan(
+    load_fleet(Path("examples/fleet.json")),
+    load_jobs_csv(Path("examples/small-jobs.csv"), start),
+    start,
+    initial={"P1S-1": PrinterState(available_at_min=150, plate_on_bed=True)},
+)
+```
+
+`docs/api.md` has a full example with pinned plates and the local search, and its output.
+
 ## Input formats
 
 ### Fleet file
@@ -389,6 +412,7 @@ src/printfarm_planner/
   report.py     Text, CSV and JSON output
   gantt.py      Self-contained HTML + SVG Gantt report
   cli.py        plan / compare / check / models
+  __init__.py   the declared library API (docs/api.md)
 ```
 
 ## Command reference

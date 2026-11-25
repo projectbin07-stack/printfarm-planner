@@ -64,6 +64,8 @@ _EPS = 1e-9
 
 @dataclass(slots=True)
 class ExactResult:
+    """What :func:`solve_exact` found; ``schedule`` is ``None`` when the instance was skipped."""
+
     schedule: Schedule | None
     objective: Objective | None
     #: True when the whole tree was searched, so ``schedule`` is optimal in the model.

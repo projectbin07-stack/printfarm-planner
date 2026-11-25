@@ -25,6 +25,8 @@ __all__ = ["Run", "compare", "compare_json", "format_compare", "render_compare_h
 
 @dataclass(slots=True)
 class Run:
+    """One planner's result in :func:`compare`; ``schedule`` is ``None`` if it was skipped."""
+
     method: str
     schedule: Schedule | None
     objective: Objective | None

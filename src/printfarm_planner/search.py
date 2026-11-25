@@ -73,6 +73,8 @@ class SearchConfig:
 
 @dataclass(slots=True)
 class SearchResult:
+    """The best schedule :func:`improve` found, its objective and run statistics."""
+
     schedule: Schedule
     objective: Objective
     start_objective: Objective

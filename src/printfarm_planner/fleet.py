@@ -32,6 +32,8 @@ class FleetError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class Labour:
+    """Operator rules: weekly labour windows, operator count and task durations (minutes)."""
+
     weekly: Weekly
     operators: int = 1
     plate_change_min: float = 5.0
@@ -40,6 +42,8 @@ class Labour:
 
 @dataclass(frozen=True, slots=True)
 class Fleet:
+    """The printers (names unique, in fleet-file order) and the labour rules."""
+
     printers: tuple[Printer, ...]
     labour: Labour
 
@@ -186,6 +190,10 @@ def _parse_labour(raw: Any) -> Labour:
 
 
 def parse_fleet(data: Any) -> Fleet:
+    """Validate an already-decoded fleet file and build the :class:`Fleet`.
+
+    Raises :class:`FleetError` naming the printer or setting that is wrong.
+    """
     if not isinstance(data, Mapping):
         raise FleetError("fleet file must contain a JSON object")
     models = _parse_models(data.get("models"))
@@ -203,6 +211,7 @@ def parse_fleet(data: Any) -> Fleet:
 
 
 def load_fleet(path: Path) -> Fleet:
+    """Read and validate a fleet JSON file (UTF-8, with or without a byte-order mark)."""
     try:
         data = read_json(path)
     except (OSError, ValueError) as exc:

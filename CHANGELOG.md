@@ -27,6 +27,15 @@ All notable changes to this project are documented here. The format follows
   hill-climbing and annealing runs, and the exact solver against brute force on ten generated
   instances with a starting state and a pinned plate.
 
+- **A declared library API.** `printfarm_planner` now exports the types and functions a program
+  needs to plan in-process (`plan`, `improve`, `solve_exact`, `simulate`, `compare`, `Fleet`,
+  `Printer`, `Job`, `Plate`, `PrinterState`, `Schedule`, `Weights`, `evaluate`,
+  `compute_metrics`, `job_from_insight`, the file loaders and more) in `__all__`, documented in
+  `docs/api.md` with a stability promise: within a minor version nothing exported is removed,
+  renamed or changed incompatibly. `tests/test_api.py` checks every exported name exists and is
+  documented, and runs the example in `docs/api.md` against the output shown there. Exported
+  functions and result types that had no docstring now have one.
+
 All new parameters are keyword-only with defaults that reproduce 0.5.0 exactly. The README
 examples and `tests/gap_study.py` were re-run on 0.5.0 and on this change: plans, objectives
 and gaps are identical; only measured run times differ.

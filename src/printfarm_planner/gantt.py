@@ -238,6 +238,7 @@ def render_html(
     title: str = "Print farm plan",
     objective: Objective | None = None,
 ) -> str:
+    """The self-contained HTML Gantt report written by ``plan --html``."""
     cal = schedule.calendar
 
     def when(minutes: float) -> str:

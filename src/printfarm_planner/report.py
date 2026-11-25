@@ -242,6 +242,7 @@ def to_csv(schedule: Schedule) -> str:
 def to_json_dict(
     schedule: Schedule, metrics: Metrics, objective: Objective | None = None
 ) -> dict[str, Any]:
+    """The plan as written by ``plan --json``: assignments, clearings, metrics, objective."""
     data: dict[str, Any] = {
         "generator": f"printfarm-planner {__version__}",
         "start": _iso(schedule, 0),
