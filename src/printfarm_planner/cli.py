@@ -219,12 +219,19 @@ def _check(fleet: Fleet, jobs: list[Job]) -> int:
 
 
 def _models() -> int:
+    width = max(len(m.name) for m in BUILTIN_MODELS.values())
     for model in BUILTIN_MODELS.values():
+        nozzles = "/".join(f"{n:g}" for n in sorted(model.nozzles_mm))
         print(
-            f"{model.name:8}  bed {model.bed_x_mm:g} x {model.bed_y_mm:g} x {model.bed_z_mm:g} mm"
-            f"  {'enclosed' if model.enclosed else 'open frame'}"
+            f"{model.name:{width}}  bed {model.bed_x_mm:g} x {model.bed_y_mm:g} x "
+            f"{model.bed_z_mm:g} mm  {'enclosed  ' if model.enclosed else 'open frame'}"
+            f"  nozzles {nozzles} mm  up to {model.max_spools} spools"
             f"  materials {', '.join(sorted(model.materials))}"
         )
+    print(
+        "Bed, enclosure, nozzles and spools: manufacturer figures from the shared printer "
+        "registry (sources in print_registry.json). Materials: this planner's default."
+    )
     return 0
 
 

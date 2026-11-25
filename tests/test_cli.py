@@ -76,8 +76,11 @@ def test_check_reports_reasons(tmp_path: Path, capsys: pytest.CaptureFixture[str
 def test_models(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["models"]) == 0
     out = capsys.readouterr().out
-    assert "A1 Mini   bed 180 x 180 x 180 mm  open frame" in out
-    assert "P1S       bed 256 x 256 x 256 mm  enclosed" in out
+    assert "A1 mini    bed 180 x 180 x 180 mm  open frame  nozzles 0.2/0.4/0.6/0.8 mm" in out
+    assert "P1S        bed 256 x 256 x 256 mm  enclosed    nozzles" in out
+    assert "X1 Carbon  bed 256 x 256 x 256 mm  enclosed" in out
+    assert "P1P        bed 256 x 256 x 256 mm  open frame" in out
+    assert "up to 16 spools" in out
 
 
 @pytest.mark.parametrize(

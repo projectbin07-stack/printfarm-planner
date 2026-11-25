@@ -52,7 +52,7 @@ def test_model_restriction() -> None:
     restricted = job(models=frozenset({"P1S", "A1"}))
     assert incompatibilities(printer(model="A1"), restricted) == []
     reasons = incompatibilities(printer(model="A1 Mini"), restricted)
-    assert reasons == ["sliced for A1, P1S, printer is A1 Mini"]
+    assert reasons == ["sliced for A1, P1S, printer is A1 mini"]
 
 
 def test_bed_fit_with_rotation() -> None:

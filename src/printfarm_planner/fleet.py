@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .labour import LabourError, Weekly, parse_weekly
-from .model import BUILTIN_MODELS, Printer, PrinterModel, normalise_spool
+from .model import BUILTIN_MODELS, Printer, PrinterModel, builtin_model, normalise_spool
 from .textio import read_json
 
 __all__ = ["Fleet", "FleetError", "Labour", "load_fleet", "parse_fleet"]
@@ -92,6 +92,18 @@ def _parse_models(raw: Any) -> dict[str, PrinterModel]:
     return models
 
 
+def _resolve_model(models: Mapping[str, PrinterModel], name: str) -> PrinterModel | None:
+    """A model by its name in the fleet file, or by a registry alias (``X1C``, ``a1-mini``).
+
+    A custom model with the same name as a built-in one replaces it, also under its aliases.
+    """
+    found = models.get(name.upper())
+    if found is not None:
+        return found
+    builtin = builtin_model(name)
+    return models.get(builtin.name.upper()) if builtin is not None else None
+
+
 def _parse_printer(spec: Any, models: Mapping[str, PrinterModel]) -> list[Printer]:
     if not isinstance(spec, Mapping):
         raise FleetError("each printer must be an object")
@@ -102,10 +114,10 @@ def _parse_printer(spec: Any, models: Mapping[str, PrinterModel]) -> list[Printe
     if unknown:
         raise FleetError(f"printer {name}: unknown key(s) {', '.join(unknown)}")
     model_name = spec.get("model")
-    if not isinstance(model_name, str) or model_name.upper() not in models:
+    model = _resolve_model(models, model_name) if isinstance(model_name, str) else None
+    if model is None:
         known = ", ".join(sorted(m.name for m in models.values()))
         raise FleetError(f"printer {name}: unknown model {model_name!r} (known: {known})")
-    model = models[model_name.upper()]
     nozzle = _number(spec.get("nozzle_mm", 0.4), f"printer {name} nozzle_mm", strict=True)
     if model.nozzles_mm and not any(abs(nozzle - n) < 1e-6 for n in model.nozzles_mm):
         sizes = ", ".join(f"{n:g}" for n in sorted(model.nozzles_mm))
@@ -113,6 +125,11 @@ def _parse_printer(spec: Any, models: Mapping[str, PrinterModel]) -> list[Printe
     slots = spec.get("ams_slots", 0)
     if isinstance(slots, bool) or not isinstance(slots, int) or slots < 0:
         raise FleetError(f"printer {name}: ams_slots must be a whole number >= 0")
+    if model.max_spools is not None and slots > model.max_spools:
+        raise FleetError(
+            f"printer {name}: ams_slots {slots} is more than the {model.max_spools} filament slots "
+            f"{model.name} supports"
+        )
     materials = frozenset(
         m.strip().upper() for m in _string_list(spec.get("materials", []), f"{name} materials")
     )

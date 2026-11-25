@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .model import Job, material_type, normalise_spool, spool_matches
+from .model import Job, canonical_model_name, material_type, normalise_spool, spool_matches
 from .textio import read_json, read_text
 
 __all__ = [
@@ -152,16 +152,12 @@ def _get(data: Mapping[str, Any], *path: str) -> Any:
 def model_from_slicer(text: str) -> str:
     """Printer model name as the planner compares it: ``"Bambu Lab A1 mini"`` -> ``"A1 MINI"``.
 
-    Bambu Studio and OrcaSlicer prefix Bambu models with the vendor; other names
+    Names in the shared printer registry resolve through their aliases, so
+    ``"Bambu Lab X1 Carbon"`` and ``"X1C"`` both give ``"X1 CARBON"``. Other names
     (``"MK4S"``, ``"Voron 2.4 350"``) are only upper-cased, so they match a custom model of the
     same name in the fleet file.
     """
-    name = " ".join(text.split())
-    for prefix in ("bambu lab ", "bambulab ", "bambu "):
-        if name.lower().startswith(prefix):
-            name = name[len(prefix) :]
-            break
-    return name.upper()
+    return canonical_model_name(text)
 
 
 def job_from_insight(
@@ -370,7 +366,9 @@ def _row_to_job(row: dict[str, str], base: Path, start: datetime, prep_min: floa
     mass = base_job.mass_g if base_job else None
     if row.get("mass_g"):
         mass = _float(row["mass_g"], "mass_g")
-    models = frozenset(m.strip().upper() for m in row.get("models", "").split("+") if m.strip())
+    models = frozenset(
+        canonical_model_name(m) for m in row.get("models", "").split("+") if m.strip()
+    )
     warnings = _conflicts(row, base_job, minutes, spools, mass, nozzle, models)
     if base_job is not None and not models:
         models = base_job.models

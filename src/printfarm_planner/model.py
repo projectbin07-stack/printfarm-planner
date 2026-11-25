@@ -5,12 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from functools import lru_cache
 
+from .registry import load_registry
+
 __all__ = [
     "BUILTIN_MODELS",
     "Job",
     "Plate",
     "Printer",
     "PrinterModel",
+    "builtin_model",
+    "canonical_model_name",
     "colour_key",
     "material_type",
     "normalise_spool",
@@ -112,20 +116,64 @@ class PrinterModel:
     enclosed: bool
     materials: frozenset[str]
     nozzles_mm: frozenset[float]
+    #: Most filament slots the manufacturer supports (all AMS units); ``None`` means unchecked.
+    max_spools: int | None = None
+    #: Key in the shared registry (``"a1-mini"``); empty for custom models.
+    registry_key: str = ""
 
 
 _OPEN_FRAME = frozenset({"PLA", "PETG", "TPU", "PVA"})
 _ENCLOSED = _OPEN_FRAME | {"ABS", "ASA", "PC", "PA"}
-_NOZZLES = frozenset({0.2, 0.4, 0.6, 0.8})
 
-#: Build volumes are Bambu Lab's published figures. The material lists are a
-#: conservative default (open-frame printers are not offered ABS/ASA/PC/PA);
-#: override them per printer in the fleet file to match your own practice.
-BUILTIN_MODELS: dict[str, PrinterModel] = {
-    "P1S": PrinterModel("P1S", 256.0, 256.0, 256.0, True, _ENCLOSED, _NOZZLES),
-    "A1": PrinterModel("A1", 256.0, 256.0, 256.0, False, _OPEN_FRAME, _NOZZLES),
-    "A1 MINI": PrinterModel("A1 Mini", 180.0, 180.0, 180.0, False, _OPEN_FRAME, _NOZZLES),
-}
+
+def _builtin_models() -> dict[str, PrinterModel]:
+    models: dict[str, PrinterModel] = {}
+    for spec in load_registry().printers:
+        x, y, z = spec.build_volume_mm
+        models[spec.model.upper()] = PrinterModel(
+            name=spec.model,
+            bed_x_mm=x,
+            bed_y_mm=y,
+            bed_z_mm=z,
+            enclosed=spec.enclosed,
+            materials=_ENCLOSED if spec.enclosed else _OPEN_FRAME,
+            nozzles_mm=frozenset(spec.nozzle_options_mm),
+            max_spools=spec.ams_max_slots,
+            registry_key=spec.key,
+        )
+    return models
+
+
+#: Models from the shared printer registry (``print_registry.json``): build volumes, enclosure,
+#: nozzle sizes and AMS capacity are the manufacturer's published figures, with sources in the
+#: data file. The material lists are this planner's conservative default (open-frame printers
+#: are not offered ABS/ASA/PC/PA); override them per printer in the fleet file to match your
+#: own practice. Keys are upper-case model names; :func:`builtin_model` also accepts aliases.
+BUILTIN_MODELS: dict[str, PrinterModel] = _builtin_models()
+
+
+def builtin_model(name: str) -> PrinterModel | None:
+    """The built-in model called ``name``: ``"X1C"``, ``"a1-mini"`` or ``"Bambu Lab P1S"``."""
+    spec = load_registry().printer(name)
+    return BUILTIN_MODELS[spec.model.upper()] if spec is not None else None
+
+
+def canonical_model_name(text: str) -> str:
+    """Upper-case model name jobs and printers are compared by.
+
+    Registry printers resolve through their aliases (``"Bambu Lab X1 Carbon"`` and ``"X1C"`` both
+    give ``"X1 CARBON"``); any other name (``"MK4S"``, ``"Voron 2.4 350"``) is upper-cased with
+    spaces collapsed, so it matches a custom model of the same name in the fleet file.
+    """
+    spec = load_registry().printer(text)
+    if spec is not None:
+        return spec.model.upper()
+    name = " ".join(text.split())
+    for prefix in ("bambu lab ", "bambulab ", "bambu "):
+        if name.lower().startswith(prefix):
+            name = name[len(prefix) :]
+            break
+    return name.upper()
 
 
 @dataclass(frozen=True, slots=True)

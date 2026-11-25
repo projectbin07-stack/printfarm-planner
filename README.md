@@ -3,8 +3,8 @@
 [![CI](https://github.com/projectbin07-stack/printfarm-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/projectbin07-stack/printfarm-planner/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Plans a production run across a mixed 3D-printer fleet (Bambu Lab P1S, A1 and A1 Mini, or your
-own models), taking into account when someone is actually there to change plates.
+Plans a production run across a mixed 3D-printer fleet (Bambu Lab P1S, P1P, X1 Carbon, A1 and
+A1 mini, or your own models), taking into account when someone is actually there to change plates.
 
 ![Gantt report for the example plan](docs/gantt.png)
 
@@ -23,8 +23,10 @@ JSON directly, so print time, filament, nozzle and size can come from the sliced
 
 ## Features
 
-- **Fleet file** (JSON): built-in P1S / A1 / A1 Mini models with Bambu Lab's published build
-  volumes, plus your own custom models. Each printer has a nozzle size, AMS slots, allowed
+- **Fleet file** (JSON): built-in P1S / P1P / X1 Carbon / A1 / A1 mini models, plus your own
+  custom models. Build volumes, enclosure, nozzle sizes and AMS capacity come from Bambu Lab's
+  published specifications, by way of the printer and material registry shared with gcode-insight,
+  print-forge and stl-doctor. Each printer has a nozzle size, AMS slots, allowed
   materials, the spools loaded at the start, an optional speed `time_factor`, and a `count` for
   identical machines.
 - **Labour windows**: weekday ranges (`mon-fri`), split shifts, shifts that run past midnight,
@@ -67,7 +69,7 @@ or from a clone with `pip install -e .`
 
 ## Quick start
 
-The repository ships an example fleet (two P1S, two A1 and one A1 Mini, one operator Mon-Fri
+The repository ships an example fleet (two P1S, two A1 and one A1 mini, one operator Mon-Fri
 08:00-18:00 and Saturday morning) and an example order. **The jobs are invented demonstration
 data, not a real order book, and their print times are not measured.**
 
@@ -102,7 +104,7 @@ Printers (wait off / wait in include the final plate's wait)
   P1S-2    P1S           4   12h 40m    20m   14h 00m      15m          0m  Tue 24 Nov 11:25  44.0%
   A1-1     A1            4   15h 15m    40m   11h 35m      10m          0m  Tue 24 Nov 11:55  53.0%
   A1-2     A1            4   16h 45m    30m   10h 25m      15m          0m  Tue 24 Nov 12:15  58.2%
-  A1-Mini  A1 Mini       8   12h 12m    40m   14h 00m      49m          0m  Tue 24 Nov 12:05  42.4%
+  A1-Mini  A1 mini       8   12h 12m    40m   14h 00m      49m          0m  Tue 24 Nov 12:05  42.4%
 ```
 
 The 31 operator tasks are 26 plate starts and 5 clearings of final plates. The same input with
@@ -263,7 +265,7 @@ case. The hex mapping is a heuristic: two different dark reds can both map to `m
     {"name": "P1S-1", "model": "P1S", "nozzle_mm": 0.4, "ams_slots": 4,
      "loaded": ["PLA:black", "PLA:white"]},
     {"name": "A1", "model": "A1", "count": 2, "ams_slots": 4},
-    {"name": "Mini", "model": "A1 Mini", "time_factor": 1.1}
+    {"name": "Mini", "model": "A1 mini", "time_factor": 1.1}
   ]
 }
 ```
@@ -272,8 +274,11 @@ case. The hex mapping is a heuristic: two different dark reds can both map to `m
   more `HH:MM-HH:MM` ranges (`"08:00-12:00, 13:00-17:00"`). A range that ends before it starts
   runs past midnight. Use `"windows": "24/7"` for an always-staffed farm. The default is Mon-Fri
   08:00-18:00.
+- `model` is a built-in model or a custom one from `models`. Built-in models also accept the
+  registry's aliases and full names: `X1C`, `a1-mini`, `Bambu Lab X1 Carbon`.
 - `ams_slots` is the number of spools available without a manual swap: 4 per AMS or AMS lite,
-  and 0 for the external holder only (one spool).
+  and 0 for the external holder only (one spool). For built-in models it may not exceed what
+  Bambu Lab documents (16: four 4-slot AMS units).
 - `materials` overrides the model's allowed material types. The built-in defaults are
   conservative: open-frame printers are not offered ABS, ASA, PC or PA. Run `printfarm-planner
   models` to see them.
@@ -339,7 +344,9 @@ This is a fast, explainable greedy heuristic. It does not search for an optimal 
 
 ```text
 src/printfarm_planner/
-  model.py      Printer models (built-in P1S/A1/A1 Mini), printers, jobs, plates
+  model.py      Printer models (built-in from the registry), printers, jobs, plates
+  registry.py   Shared printer/material registry with print_registry.json (vendored unchanged
+                from gcode-insight; CI checks the copy against the pinned release)
   fleet.py      Fleet JSON loader and validation
   labour.py     Weekly windows, lazily generated calendar, operator booking
   jobs.py       Jobs CSV and gcode-insight JSON loaders

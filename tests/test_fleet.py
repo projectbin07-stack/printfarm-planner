@@ -18,7 +18,7 @@ def test_example_fleet_loads() -> None:
     fleet = load_fleet(EXAMPLES / "fleet.json")
     assert [p.name for p in fleet.printers] == ["P1S-1", "P1S-2", "A1-1", "A1-2", "A1-Mini"]
     assert fleet.printers[0].loaded[0] == "PETG:black"
-    assert fleet.printers[4].model.name == "A1 Mini"
+    assert fleet.printers[4].model.name == "A1 mini"
     assert fleet.printers[4].time_factor == 1.1
     assert fleet.labour.weekly[5] == [(540, 780)]
     assert fleet.labour.plate_change_min == 5
@@ -41,6 +41,34 @@ def test_model_lookup_is_case_insensitive_and_materials_override() -> None:
     assert fleet.printers[0].allowed_materials == frozenset({"PLA", "PETG"})
 
 
+@pytest.mark.parametrize(
+    ("name", "model", "enclosed"),
+    [
+        ("X1C", "X1 Carbon", True),
+        ("Bambu Lab X1 Carbon", "X1 Carbon", True),
+        ("P1P", "P1P", False),
+        ("a1-mini", "A1 mini", False),
+    ],
+)
+def test_registry_models_and_aliases(name: str, model: str, enclosed: bool) -> None:
+    # Audit #49 repro: {"model": "X1C"} was "unknown model 'X1C' (known: A1, A1 Mini, P1S)".
+    p = parse_fleet(minimal(model=name, ams_slots=16)).printers[0]
+    assert p.model.name == model
+    assert p.model.enclosed is enclosed
+    assert p.model.max_spools == 16
+    assert p.model.nozzles_mm == frozenset({0.2, 0.4, 0.6, 0.8})
+
+
+def test_custom_model_replaces_builtin_also_under_its_aliases() -> None:
+    data = {
+        "models": {"X1 Carbon": {"bed_mm": [250, 250, 250], "materials": ["PLA"]}},
+        "printers": [{"name": "X", "model": "X1C", "ams_slots": 40}],
+    }
+    p = parse_fleet(data).printers[0]
+    assert p.model.bed_x_mm == 250
+    assert p.model.max_spools is None  # custom models are not limited
+
+
 def test_custom_model() -> None:
     data = {
         "models": {
@@ -61,7 +89,8 @@ def test_custom_model() -> None:
         ({"printers": []}, "printers"),
         ({"printers": ["P1S"]}, "object"),
         ({"printers": [{"model": "P1S"}]}, "without a name"),
-        (minimal(model="X1C"), "unknown model"),
+        (minimal(model="Ender-3"), r"unknown model .*known: A1, A1 mini, P1P, P1S, X1 Carbon"),
+        (minimal(ams_slots=20), "more than the 16 filament slots P1S supports"),
         (minimal(colour="red"), "unknown key"),
         (minimal(nozzle_mm=0.5), "0.5"),
         (minimal(nozzle_mm="0.4"), "number"),

@@ -94,7 +94,8 @@ def test_unlabelled_loaded_spool_takes_the_known_colour() -> None:
 @pytest.mark.parametrize(
     ("text", "model"),
     [("Bambu Lab P1S", "P1S"), ("Bambu Lab A1 mini", "A1 MINI"), ("MK4S", "MK4S"),
-     ("Voron 2.4  350", "VORON 2.4 350")],
+     ("Voron 2.4  350", "VORON 2.4 350"), ("Bambu Lab X1 Carbon", "X1 CARBON"),
+     ("X1C", "X1 CARBON"), ("a1-mini", "A1 MINI")],
 )  # fmt: skip
 def test_model_from_slicer(text: str, model: str) -> None:
     assert model_from_slicer(text) == model
