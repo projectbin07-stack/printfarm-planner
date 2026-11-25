@@ -233,3 +233,43 @@ How to read this:
   (see the README). Treat this as an observation on these instances, not a general rule.
 - These instances are generated, not real orders. `tests/test_exact.py` pins the 5- and
   7-plate numbers above so that a change in behaviour is noticed.
+
+## 7. Live fleets: starting state and pinned plates (`scheduler.py`)
+
+Since v0.6.0 every planner (`plan`, `simulate`, `improve`, `solve_exact`, `compare`) takes the
+state of the fleet when the plan starts, so a fleet manager can re-plan while printers run:
+
+- `initial`: a `PrinterState(available_at_min, plate_on_bed, offline)` per printer name.
+  - `available_at_min` is when the printer is free for its next operator task. The
+    `Dispatcher` starts that printer's clock there instead of at 0, so no plate change on it
+    starts earlier. A print that is running is described as `available_at_min` = its predicted
+    end and `plate_on_bed = True`.
+  - `plate_on_bed` marks the printer as holding a plate. Its next plate change removes it, as
+    every plate change does (`plate_change_min` covers clearing the bed and starting the next
+    file). If the plan gives the printer no plate, it still gets a clearing task. In the
+    objective the time from `available_at_min` to that first operator task counts as waiting,
+    split by the labour calendar like every other wait (the $k = 0$ term of $W_{off}$ and
+    $W_{in}$ in section 2, with $e_{p,0}$ = `available_at_min`).
+  - `offline` printers take no plates and no tasks. A job that only offline printers could run
+    is reported as unscheduled, with "printer is offline" among the reasons.
+- `pinned`: plates per printer name that must be that printer's first plates, in the given
+  order: plates already dispatched but not started. The greedy planner places them before
+  anything else on their printer (they still wait for a labour window and an operator like any
+  plate), `simulate` refuses sequences that do not start with them, the local search treats
+  them as the fixed head of each sequence (no neighbourhood picks one, nothing is inserted
+  before them), and the exact solver branches only on the plates after them. `Dispatcher.place`
+  itself refuses to place anything else first, so no planner can move them.
+
+The plate that is printing now is not a plate in the plan: it is the printer's
+`available_at_min`. With the defaults (every printer idle with an empty bed, nothing pinned)
+every planner gives exactly the results of v0.5.0; the gap study in section 6 and the README
+examples were re-run and gave identical objectives and assignments.
+
+The exact solver's lower bound ignores pinned plates that are still to be placed, which can
+only lower the bound, so it remains a valid lower bound. `tests/test_live_state.py` checks the
+exact solver against brute-force enumeration on ten generated instances with a busy printer, a
+plate on the bed, an offline printer and a pinned plate.
+
+Not modelled yet: maintenance windows within the plan, operator time that is already booked
+(for example a material swap in progress), and a penalty for moving plates away from a previous
+plan.

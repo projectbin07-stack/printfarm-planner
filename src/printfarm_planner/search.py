@@ -15,6 +15,10 @@ Acceptance is hill climbing (accept a candidate that is not worse) or, with
 The best schedule seen is returned, and the start schedule is the first "best",
 so the result is never worse than the start. A run is deterministic for a seed
 when it stops on the iteration budget; a wall-clock limit can stop it earlier.
+
+Pinned plates (``Schedule.pinned``) are the fixed head of their printer's
+sequence: no neighbourhood picks them, and nothing is inserted before them.
+The starting state (``Schedule.initial``) is taken from the start schedule too.
 """
 
 from __future__ import annotations
@@ -82,21 +86,30 @@ class SearchResult:
 
 
 def _neighbour(
-    rng: random.Random, current: Sequences, capable: dict[str, frozenset[int]]
+    rng: random.Random,
+    current: Sequences,
+    capable: dict[str, frozenset[int]],
+    fixed: Sequence[int] | None = None,
 ) -> tuple[str, Sequences] | None:
-    """One random neighbour of ``current``, or ``None`` if the drawn move does not apply."""
+    """One random neighbour of ``current``, or ``None`` if the drawn move does not apply.
+
+    The first ``fixed[i]`` plates of printer ``i`` (its pinned plates) never move, and no
+    plate is inserted in front of them. With nothing fixed the random draws are the same as
+    before pinning existed, so seeded runs reproduce earlier results.
+    """
+    head = fixed if fixed is not None else [0] * len(current)
     kind = rng.choice(NEIGHBOURHOODS)
-    slots = [(i, k) for i, seq in enumerate(current) for k in range(len(seq))]
+    slots = [(i, k) for i, seq in enumerate(current) for k in range(head[i], len(seq))]
     if not slots:
         return None
     seqs = [list(seq) for seq in current]
     a, i = rng.choice(slots)
     plate = seqs[a][i]
     if kind == "move":
-        if len(seqs[a]) < 2:
+        if len(seqs[a]) - head[a] < 2:
             return None
         seqs[a].pop(i)
-        j = rng.randrange(len(seqs[a]))
+        j = rng.randrange(head[a], len(seqs[a]))
         if j >= i:
             j += 1  # a different position than the one it came from
         seqs[a].insert(j, plate)
@@ -115,15 +128,16 @@ def _neighbour(
         return None
     b = rng.choice(targets)
     seqs[a].pop(i)
-    seqs[b].insert(rng.randrange(len(seqs[b]) + 1), plate)
+    seqs[b].insert(rng.randrange(head[b], len(seqs[b]) + 1), plate)
     return kind, seqs
 
 
-def _has_moves(current: Sequences, capable: dict[str, frozenset[int]]) -> bool:
-    plates = [p for seq in current for p in seq]
-    return any(len(seq) >= 2 for seq in current) or any(
-        len(capable[p.job.name]) > 1 for p in plates
-    )
+def _has_moves(
+    current: Sequences, capable: dict[str, frozenset[int]], fixed: Sequence[int]
+) -> bool:
+    free = [seq[fixed[i] :] for i, seq in enumerate(current)]
+    plates = [p for seq in free for p in seq]
+    return any(len(seq) >= 2 for seq in free) or any(len(capable[p.job.name]) > 1 for p in plates)
 
 
 def improve(
@@ -134,14 +148,27 @@ def improve(
     weights: Weights | None = None,
     config: SearchConfig | None = None,
 ) -> SearchResult:
-    """Improve ``initial`` (a schedule of the same fleet, jobs and start) by local search."""
+    """Improve ``initial`` (a schedule of the same fleet, jobs and start) by local search.
+
+    The starting state and pinned plates are those ``initial`` was planned with
+    (``initial.initial``, ``initial.pinned``); pinned plates keep their place.
+    """
     weights = weights if weights is not None else Weights()
     config = config if config is not None else SearchConfig()
     clock = time.perf_counter()
     rng = random.Random(config.seed)
-    state = Dispatcher(fleet, jobs, start, "search", initial.calendar)
+    state = Dispatcher(
+        fleet,
+        jobs,
+        start,
+        "search",
+        initial.calendar,
+        initial=initial.initial,
+        pinned=initial.pinned,
+    )
     capable = state.capable
     names = [p.name for p in fleet.printers]
+    fixed = [len(initial.pinned.get(name, ())) for name in names]
     label = f"{initial.strategy}+{config.rule}"
 
     start_objective = evaluate(initial, weights)
@@ -155,7 +182,7 @@ def improve(
     accepted = improvements = iterations = 0
     stopped_by = "iterations"
 
-    if not _has_moves(current, capable):
+    if not _has_moves(current, capable, fixed):
         stopped_by = "no moves"
     else:
         while iterations < config.iterations:
@@ -166,7 +193,7 @@ def improve(
                 stopped_by = "time"
                 break
             iterations += 1
-            drawn = _neighbour(rng, current, capable)
+            drawn = _neighbour(rng, current, capable, fixed)
             if drawn is None:
                 continue
             kind, candidate = drawn
@@ -178,6 +205,8 @@ def improve(
                 dict(zip(names, candidate, strict=True)),
                 strategy=label,
                 calendar=initial.calendar,
+                initial=initial.initial,
+                pinned=initial.pinned,
             )
             objective = evaluate(schedule, weights)
             delta = objective.total - current_total

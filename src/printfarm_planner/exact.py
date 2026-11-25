@@ -34,19 +34,25 @@ Lower bound of a partial schedule:
   plus plate change and print time, ignoring operator contention and material
   changes);
 * the same per-job finish bound gives a tardiness bound.
+
+With a live starting state (see :mod:`.scheduler`), offline printers are never
+served, and a printer with pinned plates left gets exactly its next pinned plate
+when it is served (it cannot be closed before). Pinned plates are not counted
+in the remaining plates of the bound, which only makes the bound weaker, so it
+stays a lower bound.
 """
 
 from __future__ import annotations
 
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
 
 from .fleet import Fleet
 from .model import Job, Plate
 from .objective import Objective, Weights, evaluate, job_weight
-from .scheduler import Dispatcher, Schedule
+from .scheduler import Dispatcher, PrinterState, Schedule
 
 __all__ = ["EXACT_PLATE_LIMIT", "ExactResult", "solve_exact"]
 
@@ -85,6 +91,10 @@ class _Search:
         self.best = best
         self.best_total = evaluate(best, weights).total if best is not None else float("inf")
         self.jobs = {job.name: job for job in root.schedule.jobs}
+        #: copy numbers of each job's plates that are not pinned, lowest first
+        self.free_copies: dict[str, list[int]] = {}
+        for plate in root.free_plates():
+            self.free_copies.setdefault(plate.job.name, []).append(plate.copy)
 
     # -- bound -------------------------------------------------------------
     def bound(
@@ -168,7 +178,7 @@ class _Search:
             self.complete = False
             return
         self.nodes += 1
-        if not any(remaining.values()):
+        if not any(remaining.values()) and not any(state.pinned):
             done = state.copy()
             done.clear_all()  # the same order simulate() clears in
             schedule = done.schedule
@@ -184,8 +194,9 @@ class _Search:
         best_slot = float("inf")
         takes_plate = False
         for i in range(len(state.printers)):
-            can = open_[i] and any(
-                count and i in state.capable[name] for name, count in remaining.items()
+            can = bool(state.pinned[i]) or (
+                open_[i]
+                and any(count and i in state.capable[name] for name, count in remaining.items())
             )
             if not can and not state.awaiting_clear(i):
                 continue
@@ -194,6 +205,16 @@ class _Search:
                 index, best_slot, takes_plate = i, slot, can
         if index < 0:
             return  # plates remain but no open printer can run them
+
+        if state.pinned[index]:  # its next plate is fixed: one child, and it cannot close
+            child = state.copy()
+            assignment = child.place(index, state.pinned[index][0])
+            cost = incurred + self.weights.material_changes * assignment.material_change
+            if state.used[index]:
+                cost += self._gap_cost(assignment.ready, assignment.setup_start)
+            if not self._prunable(self.bound(child, remaining, open_, cost)):
+                self.run(child, remaining, open_, cost)
+            return
 
         if not takes_plate:  # nothing left for it: its final plate is cleared now
             child, closed, cost = self._closed(state, index, open_, incurred)
@@ -207,7 +228,8 @@ class _Search:
                 continue
             job = self.jobs[name]
             child = state.copy()
-            assignment = child.place(index, Plate(job, job.copies - count + 1))
+            copies = self.free_copies[name]
+            assignment = child.place(index, Plate(job, copies[len(copies) - count]))
             cost = incurred + self.weights.material_changes * assignment.material_change
             if state.used[index]:
                 cost += self._gap_cost(assignment.ready, assignment.setup_start)
@@ -236,16 +258,21 @@ def solve_exact(
     upper_bound: Schedule | None = None,
     max_plates: int = EXACT_PLATE_LIMIT,
     node_limit: int = 2_000_000,
+    *,
+    initial: Mapping[str, PrinterState] | None = None,
+    pinned: Mapping[str, Sequence[Plate]] | None = None,
 ) -> ExactResult:
     """Best plate sequences for ``jobs`` under ``weights``, if at most ``max_plates`` plates.
 
     ``upper_bound`` (for example the greedy or improved schedule of the same
-    input) seeds the search; it is returned unchanged if nothing better exists.
+    input, including the same ``initial`` and ``pinned``) seeds the search; it
+    is returned unchanged if nothing better exists. Pinned plates count towards
+    ``max_plates`` and stay first on their printer.
     """
     weights = weights if weights is not None else Weights()
     clock = time.perf_counter()
     calendar = upper_bound.calendar if upper_bound is not None else None
-    root = Dispatcher(fleet, jobs, start, "exact", calendar)
+    root = Dispatcher(fleet, jobs, start, "exact", calendar, initial=initial, pinned=pinned)
     count = len(root.plates)
     if count > max_plates:
         return ExactResult(
@@ -256,8 +283,12 @@ def solve_exact(
             seconds=time.perf_counter() - clock,
             note=f"{count} plates is above the exact-solver limit of {max_plates}",
         )
-    remaining = {job.name: job.copies for job in jobs if job.name in root.capable}
     search = _Search(root, weights, node_limit, upper_bound)
+    remaining = {
+        job.name: len(search.free_copies.get(job.name, ()))
+        for job in jobs
+        if job.name in root.capable
+    }
     search.run(root, remaining, [True] * len(root.printers), 0.0)
     best = search.best
     if best is None:  # no upper bound given and nothing to place

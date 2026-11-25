@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Starting state per printer** for re-planning a live fleet: `PrinterState(available_at_min,
+  plate_on_bed, offline)`, passed by printer name as `initial=` to `plan`, `simulate`,
+  `improve` (taken from the schedule it improves), `solve_exact`, `compare` and `Dispatcher`.
+  A busy printer gets no operator task before `available_at_min`; a printer with a plate on the
+  bed gets a clearing task even if the plan gives it no plate, and that plate's wait counts in
+  the objective; an offline printer gets nothing, and a job only offline printers could run is
+  unscheduled with "printer is offline" as the reason. `Schedule.initial` and
+  `Schedule.state_of(name)` record it.
+- **Pinned plates**: `pinned=` maps a printer name to plates that must be its first plates, in
+  order. The greedy planner places them first, `simulate` refuses sequences that do not start
+  with them, the local search never picks or displaces them, and the exact solver branches only
+  after them. `Dispatcher.place` enforces the order, so no planner can move them.
+  `Schedule.pinned`, `Dispatcher.is_pinned` and `Dispatcher.free_plates` expose them. Pinned
+  plates are validated: known printer, schedulable plate, a printer that can run it, pinned once.
+- `tests/test_live_state.py`: the defaults change nothing (greedy, local search), busy, bed and
+  offline cases with hand-computed times, pinned plates under both greedy rules, 12 seeded
+  hill-climbing and annealing runs, and the exact solver against brute force on ten generated
+  instances with a starting state and a pinned plate.
+
+All new parameters are keyword-only with defaults that reproduce 0.5.0 exactly. The README
+examples and `tests/gap_study.py` were re-run on 0.5.0 and on this change: plans, objectives
+and gaps are identical; only measured run times differ.
+
 ## [0.5.0] - 2026-11-25
 
 Planning results for the README examples are unchanged. The only difference in their output is

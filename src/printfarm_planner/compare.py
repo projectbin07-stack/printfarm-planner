@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
 from html import escape
@@ -14,10 +14,10 @@ from .exact import EXACT_PLATE_LIMIT, solve_exact
 from .fleet import Fleet
 from .gantt import CSS, chart, legend, objective_table
 from .metrics import compute_metrics
-from .model import Job
+from .model import Job, Plate
 from .objective import Objective, Weights, evaluate
 from .report import format_duration, text_table
-from .scheduler import STRATEGIES, Schedule, plan
+from .scheduler import STRATEGIES, PrinterState, Schedule, plan
 from .search import SearchConfig, improve
 
 __all__ = ["Run", "compare", "compare_json", "format_compare", "render_compare_html"]
@@ -40,12 +40,16 @@ def compare(
     config: SearchConfig | None = None,
     exact_limit: int = EXACT_PLATE_LIMIT,
     node_limit: int = 2_000_000,
+    *,
+    initial: Mapping[str, PrinterState] | None = None,
+    pinned: Mapping[str, Sequence[Plate]] | None = None,
 ) -> list[Run]:
     """``fill``, ``edd``, hill climbing, annealing and (if small enough) the exact solver.
 
     Both local searches start from whichever greedy schedule has the lower
     objective (``fill`` on a tie). The exact solver is seeded with the best
-    schedule found by the others.
+    schedule found by the others. ``initial`` and ``pinned`` are passed to every
+    planner (see :mod:`.scheduler`).
     """
     weights = weights if weights is not None else Weights()
     config = config if config is not None else SearchConfig()
@@ -53,7 +57,7 @@ def compare(
     calendar = None
     for strategy in STRATEGIES:
         clock = time.perf_counter()
-        schedule = plan(fleet, jobs, start, strategy, calendar)
+        schedule = plan(fleet, jobs, start, strategy, calendar, initial=initial, pinned=pinned)
         objective = evaluate(schedule, weights)
         runs.append(Run(strategy, schedule, objective, time.perf_counter() - clock))
         calendar = schedule.calendar
@@ -87,6 +91,8 @@ def compare(
         upper_bound=best.schedule,
         max_plates=exact_limit,
         node_limit=node_limit,
+        initial=initial,
+        pinned=pinned,
     )
     if exact.schedule is None:
         runs.append(Run("exact", None, None, exact.seconds, f"skipped: {exact.note}"))

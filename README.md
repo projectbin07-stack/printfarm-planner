@@ -362,6 +362,11 @@ This is a fast, explainable greedy heuristic. It does not search for an optimal 
    printer. Every candidate is re-timed with the same rules, and the best plan by the objective
    is kept. `compare` also runs a branch-and-bound exact solver when there are at most 8 plates.
    Both are described, with formulas, in [docs/algorithm.md](docs/algorithm.md).
+5. For re-planning a running farm (library use, since v0.6.0), every planner also accepts the
+   state of each printer when the plan starts (`PrinterState`: busy until a given minute, a
+   plate on the bed that needs clearing, or offline) and **pinned** plates per printer that
+   must run first, in order. Nothing moves pinned plates or schedules work on a printer before
+   it is free. See [docs/algorithm.md](docs/algorithm.md#7-live-fleets-starting-state-and-pinned-plates-schedulerpy).
 
 ## Architecture
 

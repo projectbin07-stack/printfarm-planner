@@ -84,6 +84,9 @@ def compute_metrics(schedule: Schedule) -> Metrics:
         # each finished plate waits until the operator task after it starts: the
         # next plate's setup or, for the final plate, its clearing
         gaps = [(previous.end, current.setup_start) for previous, current in pairwise(rows)]
+        if rows and schedule.state_of(printer.name).plate_on_bed:
+            # a plate already on the bed waits for the first plate change as well
+            gaps.insert(0, (rows[0].ready, rows[0].setup_start))
         final = 0.0
         if clearing is not None:
             gaps.append((clearing.ready, clearing.start))
