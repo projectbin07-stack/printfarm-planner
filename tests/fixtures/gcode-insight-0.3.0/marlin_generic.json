@@ -1,0 +1,111 @@
+{
+  "schema_version": 3,
+  "source": "marlin_generic.gcode",
+  "line_count": 79,
+  "metadata": {
+    "slicer": null,
+    "slicer_version": null,
+    "estimated_time_s": null,
+    "estimated_time_source": null,
+    "model_time_s": null,
+    "filament_used_mm": [],
+    "filament_used_cm3": [],
+    "filament_used_g": [],
+    "layer_height": null,
+    "first_layer_height": null,
+    "nozzle_diameter": null,
+    "filament_type": [],
+    "filament_density": [],
+    "filament_diameter": [],
+    "total_layers": null,
+    "filament_colour": [],
+    "printer_model": null
+  },
+  "layer_mode": "z",
+  "layers": [
+    {
+      "index": 1,
+      "z": 0.25,
+      "filament_mm": 12.0568,
+      "extrude_path_mm": 232.0,
+      "travel_mm": 1.6642135623730951,
+      "time_s": 8.378864171849425,
+      "retractions": 2
+    },
+    {
+      "index": 2,
+      "z": 0.5,
+      "filament_mm": 12.0568,
+      "extrude_path_mm": 232.0,
+      "travel_mm": 1.6642135623730951,
+      "time_s": 8.38161997419579,
+      "retractions": 2
+    },
+    {
+      "index": 3,
+      "z": 0.75,
+      "filament_mm": 12.056799999999999,
+      "extrude_path_mm": 232.0,
+      "travel_mm": 1.6642135623730951,
+      "time_s": 8.38161997419579,
+      "retractions": 2
+    },
+    {
+      "index": 4,
+      "z": 1.0,
+      "filament_mm": 12.056800000000003,
+      "extrude_path_mm": 232.0,
+      "travel_mm": 5.707106781186548,
+      "time_s": 8.28482444534601,
+      "retractions": 2
+    }
+  ],
+  "startup": {
+    "index": 0,
+    "z": null,
+    "filament_mm": 0.0,
+    "extrude_path_mm": 0.0,
+    "travel_mm": 64.24316369738256,
+    "time_s": 0.5266194287806533,
+    "retractions": 0
+  },
+  "filament_mm": 48.2272,
+  "volume_cm3": 0.11600001006151685,
+  "mass_g": 0.1438400124762809,
+  "tools": [
+    {
+      "tool": 0,
+      "filament_mm": 48.2272,
+      "volume_cm3": 0.11600001006151685,
+      "mass_g": 0.1438400124762809,
+      "material": null,
+      "density": 1.24,
+      "diameter": 1.75,
+      "colour": null
+    }
+  ],
+  "extrude_path_mm": 928.0,
+  "travel_mm": 74.94291116568843,
+  "retractions": 8,
+  "tool_changes": 0,
+  "bounding_box": {
+    "min_x": 45.25,
+    "max_x": 74.75,
+    "min_y": 45.25,
+    "max_y": 74.75,
+    "min_z": 0.25,
+    "max_z": 1.0
+  },
+  "estimated_time_s": 33.953547994367696,
+  "dwell_time_s": 1.5,
+  "time_comparison": null,
+  "nozzle_temp_max": 205.0,
+  "bed_temp_max": 60.0,
+  "fan_max_percent": {
+    "0": 50.19607843137255
+  },
+  "warnings": [
+    "material unknown; mass assumes PLA density 1.24 g/cm^3 (use --material or --density)"
+  ],
+  "layer_count": 4
+}

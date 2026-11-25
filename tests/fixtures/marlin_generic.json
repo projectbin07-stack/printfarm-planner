@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "source": "marlin_generic.gcode",
   "line_count": 79,
   "metadata": {
@@ -30,7 +30,12 @@
       "extrude_path_mm": 232.0,
       "travel_mm": 1.6642135623730951,
       "time_s": 8.378864171849425,
-      "retractions": 2
+      "retractions": 2,
+      "filament_mm_by_tool": {
+        "0": 12.0568
+      },
+      "start_s": 0.5266194287806533,
+      "end_s": 8.90548360063008
     },
     {
       "index": 2,
@@ -39,7 +44,12 @@
       "extrude_path_mm": 232.0,
       "travel_mm": 1.6642135623730951,
       "time_s": 8.38161997419579,
-      "retractions": 2
+      "retractions": 2,
+      "filament_mm_by_tool": {
+        "0": 12.0568
+      },
+      "start_s": 8.90548360063008,
+      "end_s": 17.28710357482587
     },
     {
       "index": 3,
@@ -48,7 +58,12 @@
       "extrude_path_mm": 232.0,
       "travel_mm": 1.6642135623730951,
       "time_s": 8.38161997419579,
-      "retractions": 2
+      "retractions": 2,
+      "filament_mm_by_tool": {
+        "0": 12.056799999999999
+      },
+      "start_s": 17.28710357482587,
+      "end_s": 25.66872354902166
     },
     {
       "index": 4,
@@ -57,7 +72,12 @@
       "extrude_path_mm": 232.0,
       "travel_mm": 5.707106781186548,
       "time_s": 8.28482444534601,
-      "retractions": 2
+      "retractions": 2,
+      "filament_mm_by_tool": {
+        "0": 12.056800000000003
+      },
+      "start_s": 25.66872354902166,
+      "end_s": 33.95354799436767
     }
   ],
   "startup": {
@@ -67,7 +87,10 @@
     "extrude_path_mm": 0.0,
     "travel_mm": 64.24316369738256,
     "time_s": 0.5266194287806533,
-    "retractions": 0
+    "retractions": 0,
+    "filament_mm_by_tool": {},
+    "start_s": 0.0,
+    "end_s": 0.5266194287806533
   },
   "filament_mm": 48.2272,
   "volume_cm3": 0.11600001006151685,
@@ -107,5 +130,6 @@
   "warnings": [
     "material unknown; mass assumes PLA density 1.24 g/cm^3 (use --material or --density)"
   ],
+  "tool_change_events": [],
   "layer_count": 4
 }

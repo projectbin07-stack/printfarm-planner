@@ -19,10 +19,10 @@ gi = pytest.importorskip("gcode_insight")
 GCODE = FIXTURES / "gcode"
 
 
-def test_installed_version_writes_schema_3_or_later() -> None:
+def test_installed_version_writes_schema_4_or_later() -> None:
     major, minor = (int(p) for p in gi.__version__.split(".")[:2])
-    assert (major, minor) >= (0, 3)
-    assert gi.SCHEMA_VERSION >= 3
+    assert (major, minor) >= (0, 4)
+    assert gi.SCHEMA_VERSION >= 4
 
 
 @pytest.mark.parametrize(

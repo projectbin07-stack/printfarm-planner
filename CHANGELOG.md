@@ -36,6 +36,16 @@ All notable changes to this project are documented here. The format follows
   documented, and runs the example in `docs/api.md` against the output shown there. Exported
   functions and result types that had no docstring now have one.
 
+- gcode-insight 0.4.0 JSON (`schema_version` 4) is understood without a "newer schema" note.
+  Its new timeline fields are ignored; for the same file it gives the same job as 0.3.0 output
+  (tested on all five fixtures, whose 0.3.0 output moved to `tests/fixtures/gcode-insight-0.3.0/`).
+
+### Changed
+
+- The vendored registry is the gcode-insight v0.4.0 copy (registry schema 2: connection facts
+  per printer and AMS models, not used by the planner; `models` output is unchanged), and the
+  `registry` and `interop` CI jobs pin gcode-insight v0.4.0.
+
 All new parameters are keyword-only with defaults that reproduce 0.5.0 exactly. The README
 examples and `tests/gap_study.py` were re-run on 0.5.0 and on this change: plans, objectives
 and gaps are identical; only measured run times differ.

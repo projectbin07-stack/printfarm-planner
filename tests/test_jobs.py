@@ -57,6 +57,19 @@ def test_gcode_insight_0_2_0_output_still_loads() -> None:
     assert old == new  # schema 3 only adds estimated_time_source
 
 
+@pytest.mark.parametrize(
+    "name", ["bambu_cube", "prusa_cube", "orca_cube", "marlin_generic", "cura_griffin"]
+)
+def test_gcode_insight_0_3_0_output_loads_like_0_4_0(name: str) -> None:
+    default = "PLA" if name in ("marlin_generic", "cura_griffin") else None
+    old = load_insight_file(
+        FIXTURES / "gcode-insight-0.3.0" / f"{name}.json", default_material=default
+    )
+    new = load_insight_file(FIXTURES / f"{name}.json", default_material=default)
+    assert old == new  # schema 4 only adds the timeline, which the planner does not use
+    assert not any("newer" in note for note in new.notes)
+
+
 def test_cura_print_time_from_gcode_insight_0_3_0() -> None:
     job = load_insight_file(FIXTURES / "cura_griffin.json", default_material="PLA")
     assert job.print_time_min == pytest.approx(95 / 60)

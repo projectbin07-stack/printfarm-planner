@@ -1,0 +1,106 @@
+{
+  "schema_version": 3,
+  "source": "cura_griffin.gcode",
+  "line_count": 78,
+  "metadata": {
+    "slicer": "Cura",
+    "slicer_version": "5.7.1",
+    "estimated_time_s": 95.0,
+    "estimated_time_source": ";PRINT.TIME",
+    "model_time_s": null,
+    "filament_used_mm": [],
+    "filament_used_cm3": [],
+    "filament_used_g": [],
+    "layer_height": null,
+    "first_layer_height": null,
+    "nozzle_diameter": null,
+    "filament_type": [],
+    "filament_density": [],
+    "filament_diameter": [],
+    "total_layers": 3,
+    "filament_colour": [],
+    "printer_model": "Ultimaker S5"
+  },
+  "layer_mode": "markers",
+  "layers": [
+    {
+      "index": 1,
+      "z": 0.2,
+      "filament_mm": 5.10876,
+      "extrude_path_mm": 153.60000000000002,
+      "travel_mm": 128.32774875100242,
+      "time_s": 5.615579492481853,
+      "retractions": 2
+    },
+    {
+      "index": 2,
+      "z": 0.4,
+      "filament_mm": 5.10876,
+      "extrude_path_mm": 153.60000000000002,
+      "travel_mm": 1.3313708498984518,
+      "time_s": 4.781629541009245,
+      "retractions": 2
+    },
+    {
+      "index": 3,
+      "z": 0.6,
+      "filament_mm": 5.10876,
+      "extrude_path_mm": 153.60000000000002,
+      "travel_mm": 1.3313708498984518,
+      "time_s": 4.781629541009245,
+      "retractions": 2
+    }
+  ],
+  "startup": {
+    "index": 0,
+    "z": null,
+    "filament_mm": 0.0,
+    "extrude_path_mm": 0.0,
+    "travel_mm": 0.0,
+    "time_s": 0.0,
+    "retractions": 0
+  },
+  "filament_mm": 15.32628,
+  "volume_cm3": 0.036864023501377324,
+  "mass_g": 0.04571138914170788,
+  "tools": [
+    {
+      "tool": 0,
+      "filament_mm": 15.32628,
+      "volume_cm3": 0.036864023501377324,
+      "mass_g": 0.04571138914170788,
+      "material": null,
+      "density": 1.24,
+      "diameter": 1.75,
+      "colour": null
+    }
+  ],
+  "extrude_path_mm": 460.8000000000002,
+  "travel_mm": 130.99049045079934,
+  "retractions": 6,
+  "tool_changes": 0,
+  "bounding_box": {
+    "min_x": 90.2,
+    "max_x": 109.8,
+    "min_y": 90.2,
+    "max_y": 109.8,
+    "min_z": 0.2,
+    "max_z": 0.6
+  },
+  "estimated_time_s": 15.17883857450035,
+  "dwell_time_s": 0.0,
+  "time_comparison": {
+    "slicer_time_s": 95.0,
+    "basis": "Cura ;PRINT.TIME",
+    "estimate_s": 15.17883857450035,
+    "difference_s": -79.82116142549965,
+    "ratio": 0.15977724815263528
+  },
+  "nozzle_temp_max": 205.0,
+  "bed_temp_max": 60.0,
+  "fan_max_percent": {},
+  "warnings": [
+    "material unknown; mass assumes PLA density 1.24 g/cm^3 (use --material or --density)"
+  ],
+  "layer_count": 3
+}

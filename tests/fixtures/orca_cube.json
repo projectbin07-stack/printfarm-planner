@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "source": "orca_cube.gcode",
   "line_count": 291,
   "metadata": {
@@ -42,7 +42,12 @@
       "extrude_path_mm": 312.80000000000007,
       "travel_mm": 146.1225755681915,
       "time_s": 12.962460219778189,
-      "retractions": 3
+      "retractions": 3,
+      "filament_mm_by_tool": {
+        "0": 11.704279999999999
+      },
+      "start_s": 0.0,
+      "end_s": 12.962460219778189
     },
     {
       "index": 2,
@@ -51,7 +56,12 @@
       "extrude_path_mm": 312.80000000000007,
       "travel_mm": 28.247875144394023,
       "time_s": 4.057130991178713,
-      "retractions": 3
+      "retractions": 3,
+      "filament_mm_by_tool": {
+        "0": 11.704279999999999
+      },
+      "start_s": 12.962460219778189,
+      "end_s": 17.019591210956904
     },
     {
       "index": 3,
@@ -60,7 +70,12 @@
       "extrude_path_mm": 312.80000000000007,
       "travel_mm": 28.247875144394023,
       "time_s": 4.057130991178713,
-      "retractions": 3
+      "retractions": 3,
+      "filament_mm_by_tool": {
+        "0": 11.704280000000008
+      },
+      "start_s": 17.019591210956904,
+      "end_s": 21.076722202135617
     },
     {
       "index": 4,
@@ -69,7 +84,12 @@
       "extrude_path_mm": 312.80000000000007,
       "travel_mm": 28.247875144394023,
       "time_s": 4.057130991178713,
-      "retractions": 3
+      "retractions": 3,
+      "filament_mm_by_tool": {
+        "0": 11.70428000000004
+      },
+      "start_s": 21.076722202135617,
+      "end_s": 25.13385319331433
     },
     {
       "index": 5,
@@ -78,7 +98,12 @@
       "extrude_path_mm": 312.80000000000007,
       "travel_mm": 28.247875144394023,
       "time_s": 4.057130991178713,
-      "retractions": 3
+      "retractions": 3,
+      "filament_mm_by_tool": {
+        "0": 11.70428000000004
+      },
+      "start_s": 25.13385319331433,
+      "end_s": 29.190984184493043
     }
   ],
   "startup": {
@@ -88,7 +113,10 @@
     "extrude_path_mm": 0.0,
     "travel_mm": 0.0,
     "time_s": 0.0,
-    "retractions": 0
+    "retractions": 0,
+    "filament_mm_by_tool": {},
+    "start_s": 0.0,
+    "end_s": 0.0
   },
   "filament_mm": 58.521400000000085,
   "volume_cm3": 0.14076046274330795,
@@ -132,5 +160,6 @@
     "0": 50.0
   },
   "warnings": [],
+  "tool_change_events": [],
   "layer_count": 5
 }

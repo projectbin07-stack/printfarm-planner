@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "source": "cura_griffin.gcode",
   "line_count": 78,
   "metadata": {
@@ -30,7 +30,12 @@
       "extrude_path_mm": 153.60000000000002,
       "travel_mm": 128.32774875100242,
       "time_s": 5.615579492481853,
-      "retractions": 2
+      "retractions": 2,
+      "filament_mm_by_tool": {
+        "0": 5.10876
+      },
+      "start_s": 0.0,
+      "end_s": 5.615579492481853
     },
     {
       "index": 2,
@@ -39,7 +44,12 @@
       "extrude_path_mm": 153.60000000000002,
       "travel_mm": 1.3313708498984518,
       "time_s": 4.781629541009245,
-      "retractions": 2
+      "retractions": 2,
+      "filament_mm_by_tool": {
+        "0": 5.10876
+      },
+      "start_s": 5.615579492481853,
+      "end_s": 10.397209033491098
     },
     {
       "index": 3,
@@ -48,7 +58,12 @@
       "extrude_path_mm": 153.60000000000002,
       "travel_mm": 1.3313708498984518,
       "time_s": 4.781629541009245,
-      "retractions": 2
+      "retractions": 2,
+      "filament_mm_by_tool": {
+        "0": 5.10876
+      },
+      "start_s": 10.397209033491098,
+      "end_s": 15.178838574500343
     }
   ],
   "startup": {
@@ -58,7 +73,10 @@
     "extrude_path_mm": 0.0,
     "travel_mm": 0.0,
     "time_s": 0.0,
-    "retractions": 0
+    "retractions": 0,
+    "filament_mm_by_tool": {},
+    "start_s": 0.0,
+    "end_s": 0.0
   },
   "filament_mm": 15.32628,
   "volume_cm3": 0.036864023501377324,
@@ -102,5 +120,6 @@
   "warnings": [
     "material unknown; mass assumes PLA density 1.24 g/cm^3 (use --material or --density)"
   ],
+  "tool_change_events": [],
   "layer_count": 3
 }

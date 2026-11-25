@@ -33,8 +33,9 @@ __all__ = [
 #: Newest gcode-insight ``analyze --json`` layout this version understands. 0.1.0 output has
 #: no ``schema_version`` (layout 1); layout 2 adds filament colour and the printer model; layout
 #: 3 (gcode-insight 0.3.0) adds ``metadata.estimated_time_source`` and reads Cura's
-#: ``;PRINT.TIME`` header.
-INSIGHT_SCHEMA_VERSION = 3
+#: ``;PRINT.TIME`` header; layout 4 (gcode-insight 0.4.0) adds a per-layer, per-tool timeline
+#: that the planner does not use.
+INSIGHT_SCHEMA_VERSION = 4
 
 #: Relative difference above which a CSV value that overrides the G-code analysis is reported.
 _CONFLICT_TOLERANCE = 0.10

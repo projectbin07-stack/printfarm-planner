@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "source": "prusa_cube.gcode",
   "line_count": 325,
   "metadata": {
@@ -44,7 +44,12 @@
       "extrude_path_mm": 312.80000000000007,
       "travel_mm": 153.86128551963236,
       "time_s": 17.018009946870183,
-      "retractions": 3
+      "retractions": 3,
+      "filament_mm_by_tool": {
+        "0": 11.70428
+      },
+      "start_s": 0.0,
+      "end_s": 17.018009946870183
     },
     {
       "index": 2,
@@ -53,7 +58,12 @@
       "extrude_path_mm": 312.80000000000007,
       "travel_mm": 28.247875144394023,
       "time_s": 8.056218361226115,
-      "retractions": 3
+      "retractions": 3,
+      "filament_mm_by_tool": {
+        "0": 11.704280000000022
+      },
+      "start_s": 17.018009946870183,
+      "end_s": 25.0742283080963
     },
     {
       "index": 3,
@@ -62,7 +72,12 @@
       "extrude_path_mm": 312.80000000000007,
       "travel_mm": 28.247875144394023,
       "time_s": 8.056218361226115,
-      "retractions": 3
+      "retractions": 3,
+      "filament_mm_by_tool": {
+        "0": 11.704280000000026
+      },
+      "start_s": 25.0742283080963,
+      "end_s": 33.13044666932241
     },
     {
       "index": 4,
@@ -71,7 +86,12 @@
       "extrude_path_mm": 312.80000000000007,
       "travel_mm": 28.247875144394023,
       "time_s": 8.056218361226115,
-      "retractions": 3
+      "retractions": 3,
+      "filament_mm_by_tool": {
+        "0": 11.70428000000004
+      },
+      "start_s": 33.13044666932241,
+      "end_s": 41.186665030548525
     },
     {
       "index": 5,
@@ -80,7 +100,12 @@
       "extrude_path_mm": 312.80000000000007,
       "travel_mm": 28.247875144394023,
       "time_s": 8.056218361226115,
-      "retractions": 3
+      "retractions": 3,
+      "filament_mm_by_tool": {
+        "0": 11.70428000000004
+      },
+      "start_s": 41.186665030548525,
+      "end_s": 49.24288339177464
     },
     {
       "index": 6,
@@ -89,7 +114,12 @@
       "extrude_path_mm": 312.80000000000007,
       "travel_mm": 37.04787514439403,
       "time_s": 8.819551694559449,
-      "retractions": 3
+      "retractions": 3,
+      "filament_mm_by_tool": {
+        "0": 11.704279999999983
+      },
+      "start_s": 49.24288339177464,
+      "end_s": 58.06243508633409
     }
   ],
   "startup": {
@@ -99,7 +129,10 @@
     "extrude_path_mm": 0.0,
     "travel_mm": 0.0,
     "time_s": 0.0,
-    "retractions": 0
+    "retractions": 0,
+    "filament_mm_by_tool": {},
+    "start_s": 0.0,
+    "end_s": 0.0
   },
   "filament_mm": 70.22568000000011,
   "volume_cm3": 0.16891255529196958,
@@ -143,5 +176,6 @@
     "0": 30.0
   },
   "warnings": [],
+  "tool_change_events": [],
   "layer_count": 6
 }

@@ -2,15 +2,16 @@
 
 `gcode/` holds copies of gcode-insight's synthetic G-code fixtures (`bambu_cube.gcode`,
 `prusa_cube.gcode`, `orca_cube.gcode`, `marlin_generic.gcode` and `cura_griffin.gcode`, from
-gcode-insight v0.3.0; the first four are unchanged since v0.2.0). They were
+gcode-insight v0.3.0, unchanged in v0.4.0; the first four are unchanged since v0.2.0). They were
 generated to imitate each slicer's conventions. They are not real slicer output, and their
 "estimated time" comments are placeholders. Treat the times and masses here as format samples, not
 as realistic jobs.
 
-The `*.json` files next to this README are unmodified output of gcode-insight 0.3.0
-(`"schema_version": 3`, with filament colour, printer model and `estimated_time_source`) for those
-files. `gcode-insight-0.2.0/` and `gcode-insight-0.1.0/` keep the output of the older releases
-(0.1.0: no `schema_version`, no colour, no printer model) to test that older files still load.
+The `*.json` files next to this README are unmodified output of gcode-insight 0.4.0
+(`"schema_version": 4`: filament colour, printer model, `estimated_time_source`, and the
+per-layer, per-tool timeline the planner ignores) for those files. `gcode-insight-0.3.0/`,
+`gcode-insight-0.2.0/` and `gcode-insight-0.1.0/` keep the output of the older releases (0.1.0:
+no `schema_version`, no colour, no printer model) to test that older files still load.
 
 | File | What it exercises |
 |------|-------------------|
