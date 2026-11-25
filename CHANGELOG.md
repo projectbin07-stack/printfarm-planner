@@ -4,6 +4,59 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-11-25
+
+Planning results for the README examples are unchanged. The only difference in their output is
+that the A1 mini model is now written `A1 mini`, as Bambu Lab writes it (it was `A1 Mini`).
+`docs/gantt.png` and `docs/compare.png` are still the 0.4.0 renders.
+
+### Added
+
+- **Shared printer and material registry** (audit #49). The built-in models now come from
+  `print_registry.json` and `registry.py`, vendored unchanged from gcode-insight v0.3.0. This adds
+  the Bambu Lab **P1P** and **X1 Carbon** to the P1S, A1 and A1 mini. Build volume, enclosure,
+  nozzle sizes and AMS capacity are the manufacturer's published figures, and the sources are in
+  the data file. Fleet files, the jobs CSV `models` column and gcode-insight's `printer_model`
+  all accept the registry's aliases (`X1C`, `a1-mini`, `Bambu Lab X1 Carbon`). A new `registry`
+  CI job fails if the vendored files differ from the pinned gcode-insight tag.
+- `printfarm-planner models` also shows nozzle sizes and the maximum number of spools.
+- gcode-insight 0.3.0 JSON (`schema_version` 3) is understood. A job timed from Cura's
+  `;PRINT.TIME` header says so in its notes.
+
+### Changed
+
+- **Material trade names** (audit #42). Printer compatibility now checks the base polymer:
+  registry aliases first, then the leading-letters rule gcode-insight already used. `PLA-CF`,
+  `PLA Silk` and `PETG HF` run wherever PLA or PETG may. Spools are still compared by their full
+  name, so a `PLA-CF` job does not use a loaded plain-PLA spool.
+- **`+` in material names.** `PLA+` can be written as is: a `+` at the end of a name, or before
+  `:` or another `+`, belongs to the name. `\+` escapes a `+` anywhere else. See "Material names"
+  in the README.
+- **Tolerant jobs CSV** (audit #49).
+  - The delimiter is taken from the header line (`,`, `;` or tab).
+  - Unknown columns are ignored, with a warning on stderr. A near-miss of a planner column
+    (`print_tme`) is still an error, with a "did you mean" hint.
+  - `print_time` accepts `H:MM:SS` and seconds (`2h 15m 30s`). `H:MM` and `H:MM:SS` now reject
+    minutes or seconds above 59. Before, `1:75` was read as 135 minutes.
+- `ams_slots` on a built-in model may not exceed the documented maximum of 16 (four 4-slot AMS
+  units).
+- The `interop` CI job now pins gcode-insight **v0.3.0** (audit #32). It writes fresh JSON for
+  every G-code fixture with the gcode-insight CLI, then runs `check` and `plan` on that JSON. The
+  committed fixtures are regenerated with 0.3.0. The 0.2.0 output is kept in
+  `tests/fixtures/gcode-insight-0.2.0/` and loads identically.
+
+### Before / after on the audit repros
+
+| Repro | 0.4.0 | 0.5.0 |
+|---|---|---|
+| `cf.csv` (`PLA-CF`, `PLA Silk`, `PETG HF`) | `NO PRINTER` for all three, exit 1 | each runs on P1S-1, P1S-2, A1-1, A1-2, A1-Mini; exit 0 |
+| `material` = `PLA+` | `empty material in ''`, exit 2 | spool `PLA+`, runs everywhere PLA does; exit 0 |
+| `extra.csv` (`notes` column) | `unknown column(s) notes`, exit 2 | loads; `warning: extra.csv: ignored column(s) notes`; exit 0 |
+| `semi.csv` (`;` delimiter) | `missing required column 'name'`, exit 2 | loads; exit 0 |
+| `hms.csv` (`2h 15m 30s`) | `bad duration`, exit 2 | 135.5 min; exit 0 |
+| `hmmss.csv` (`1:30:00`) | `bad duration`, exit 2 | 90 min; exit 0 |
+| `fleet_x1c.json` (`"model": "X1C"`) | `unknown model 'X1C' (known: A1, A1 Mini, P1S)`, exit 2 | loads as X1 Carbon; exit 0 |
+
 ## [0.4.0] - 2026-11-24
 
 This release changes planning results for files analysed by gcode-insight and for spools with
@@ -159,6 +212,7 @@ First release.
 - Not yet used on a real print farm. Example jobs are invented, and print times come from slicer
   or model estimates. See the README section "Known limitations".
 
+[0.5.0]: https://github.com/projectbin07-stack/printfarm-planner/releases/tag/v0.5.0
 [0.4.0]: https://github.com/projectbin07-stack/printfarm-planner/releases/tag/v0.4.0
 [0.3.0]: https://github.com/projectbin07-stack/printfarm-planner/releases/tag/v0.3.0
 [0.2.0]: https://github.com/projectbin07-stack/printfarm-planner/releases/tag/v0.2.0

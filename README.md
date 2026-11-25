@@ -471,7 +471,7 @@ pip install -e ".[dev]"
 ruff check . && ruff format --check . && mypy && pytest --cov
 ```
 
-The 326 tests include scheduler scenarios with timelines worked out by hand (for example, a
+The 379 tests (371 when gcode-insight is not installed and `tests/test_interop.py` is skipped) include scheduler scenarios with timelines worked out by hand (for example, a
 12-hour plate started Monday 08:05 ends at 20:05, its successor is set up at Tuesday 08:00, and
 the final plate is cleared Wednesday 08:00). They also cover calendar edge cases (weekends,
 shifts past midnight, windows too short for a task), operator contention, including two final
